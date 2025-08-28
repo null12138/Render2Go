@@ -7,7 +7,7 @@ A high-performance animation rendering framework designed for mathematical educa
 ### Installation
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone [<repository-url>](https://github.com/null12138/Render2Go)
 cd Render2Go
 
 # Build the program
