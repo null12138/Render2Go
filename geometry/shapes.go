@@ -188,22 +188,51 @@ func NewRegularPolygon(sides int, radius float64) *Polygon {
 	return NewPolygon(vertices)
 }
 
-// Text 文本（简化版）
+// Text 文本对象
 type Text struct {
 	*core.BaseMobject
-	text string
-	size float64
+	text     string
+	size     float64
+	position gmMath.Vector2
 }
 
-// NewText 创建新的文本
+// NewText 创建新的文本对象
 func NewText(text string, size float64) *Text {
 	textObj := &Text{
 		BaseMobject: core.NewBaseMobject(),
 		text:        text,
 		size:        size,
+		position:    gmMath.Vector2{X: 0, Y: 0}, // 默认位置为原点
 	}
-	textObj.SetColor(color.RGBA{255, 255, 255, 255})
+
+	// 设置默认文本颜色为黑色，确保在白色背景上可见
+	textObj.SetColor(color.RGBA{0, 0, 0, 255})
+	textObj.SetFillOpacity(1.0) // 文本默认完全不透明
+
+	// 生成文本的边界框点（用于渲染系统）
+	textObj.generateBounds()
+
 	return textObj
+}
+
+// generateBounds 生成文本的边界框点
+func (t *Text) generateBounds() {
+	// 估算文本的大概尺寸（简化计算）
+	width := float64(len(t.text)) * t.size * 0.6 // 每个字符大约是字体大小的0.6倍宽
+	height := t.size * 1.2                       // 高度略大于字体大小
+
+	halfWidth := width / 2
+	halfHeight := height / 2
+
+	// 创建文本的边界框四个角点
+	points := []gmMath.Vector2{
+		{X: t.position.X - halfWidth, Y: t.position.Y - halfHeight}, // 左下
+		{X: t.position.X + halfWidth, Y: t.position.Y - halfHeight}, // 右下
+		{X: t.position.X + halfWidth, Y: t.position.Y + halfHeight}, // 右上
+		{X: t.position.X - halfWidth, Y: t.position.Y + halfHeight}, // 左上
+	}
+
+	t.SetPoints(points)
 }
 
 // GetText 获取文本内容
@@ -214,16 +243,87 @@ func (t *Text) GetText() string {
 // SetText 设置文本内容
 func (t *Text) SetText(text string) *Text {
 	t.text = text
+	t.generateBounds() // 重新生成边界框
 	return t
 }
 
-// GetSize 获取文本大小
+// GetSize 获取字体大小
 func (t *Text) GetSize() float64 {
 	return t.size
 }
 
-// SetSize 设置文本大小
+// SetSize 设置字体大小
 func (t *Text) SetSize(size float64) *Text {
 	t.size = size
+	t.generateBounds() // 重新生成边界框
+	return t
+}
+
+// MoveTo 移动文本到指定位置
+func (t *Text) MoveTo(pos gmMath.Vector2) core.Mobject {
+	t.position = pos
+	t.generateBounds() // 重新生成边界框
+	return t
+}
+
+// GetCenter 获取文本中心位置
+func (t *Text) GetCenter() gmMath.Vector2 {
+	return t.position
+}
+
+// SetPosition 设置文本位置（别名方法）
+func (t *Text) SetPosition(x, y float64) *Text {
+	t.MoveTo(gmMath.Vector2{X: x, Y: y})
+	return t
+}
+
+// Triangle 三角形
+type Triangle struct {
+	*core.BaseMobject
+	vertices [3]gmMath.Vector2
+}
+
+// NewTriangle 创建新的三角形
+func NewTriangle(v1, v2, v3 gmMath.Vector2) *Triangle {
+	triangle := &Triangle{
+		BaseMobject: core.NewBaseMobject(),
+		vertices:    [3]gmMath.Vector2{v1, v2, v3},
+	}
+	triangle.generatePoints()
+	return triangle
+}
+
+// NewIsoscelesRightTriangle 创建等腰直角三角形（底边水平，直角顶点在上方）
+func NewIsoscelesRightTriangle(center gmMath.Vector2, size float64) *Triangle {
+	// 计算三个顶点
+	// 直角顶点在上方
+	top := gmMath.Vector2{X: center.X, Y: center.Y + size/2}
+	// 底边两个顶点
+	left := gmMath.Vector2{X: center.X - size/2, Y: center.Y - size/2}
+	right := gmMath.Vector2{X: center.X + size/2, Y: center.Y - size/2}
+
+	return NewTriangle(top, left, right)
+}
+
+func (t *Triangle) generatePoints() {
+	// 三角形的轮廓点
+	points := []gmMath.Vector2{
+		t.vertices[0], // 第一个顶点
+		t.vertices[1], // 第二个顶点
+		t.vertices[2], // 第三个顶点
+		t.vertices[0], // 回到第一个顶点闭合
+	}
+	t.SetPoints(points)
+}
+
+// GetVertices 获取顶点
+func (t *Triangle) GetVertices() [3]gmMath.Vector2 {
+	return t.vertices
+}
+
+// SetVertices 设置顶点
+func (t *Triangle) SetVertices(v1, v2, v3 gmMath.Vector2) *Triangle {
+	t.vertices = [3]gmMath.Vector2{v1, v2, v3}
+	t.generatePoints()
 	return t
 }

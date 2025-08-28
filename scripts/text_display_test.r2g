@@ -1,0 +1,30 @@
+// 文本显示测试脚本
+scene 800 600 "text_display_test"
+
+// 测试默认黑色文本（无颜色设置）
+create text default_text "默认文本（应该是黑色）" 32 (400, 500)
+
+// 测试显式设置的各种颜色文本
+create text red_text "红色文本" 24 (200, 400)
+set red_text.color = "#FF0000"
+
+create text blue_text "蓝色文本" 24 (400, 400)
+set blue_text.color = "#0000FF"
+
+create text green_text "绿色文本" 24 (600, 400)
+set green_text.color = "#00FF00"
+
+// 测试不同大小的文本
+create text small_text "小号文本" 16 (200, 300)
+set small_text.color = "#666666"
+
+create text large_text "大号文本" 48 (500, 200)
+set large_text.color = "#333333"
+
+// 测试透明度
+create text semi_transparent "半透明文本" 28 (400, 350)
+set semi_transparent.color = "#FF6600"
+set semi_transparent.opacity = 0.5
+
+save "text_display_test"
+render

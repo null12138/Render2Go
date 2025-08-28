@@ -1,113 +1,178 @@
 # Render2Go
 
-A new generation engine aimed at rendering animation.
+A high-performance animation rendering framework designed for mathematical education and demonstration. Create complex mathematical animations and geometric graphics through a simple scripting language.
 
-USING GOLANG!
+## 🚀 Quick Start
 
-## Features
-
-- **Dndependent less**: you can run it out of golang env.
-- **Use a simply language**: low learning price. 
-- **Color themes**: support color management.
-
-## Usage
-
-### Generate binary file in your platform
-
+### Installation
 ```bash
-# windows:
-go build -o render2go.exe ./cmd/render2go
-#ubuntu:
-go build -o render2go ./cmd/render2go
+# Clone the repository
+git clone <repository-url>
+cd Render2Go
+
+# Build the program
+go build -o render2go.exe cmd/render2go/main.go
 ```
 
-*you can download pre-compiled file on the download page*
+### First Script
+Create a file named `hello.r2g`:
+```r2g
+scene 800 600 "hello_world"
+create circle my_circle 50 (400, 300)
+set my_circle.color = "#FF6600"
+save "hello"
+```
 
-### Use it!
-
+Run the script:
 ```bash
-render2go.exe script.r2g
-
-render2go.exe -i
-
-render2go.exe -debug script.r2g
-
-render2go.exe --help
+./render2go hello.r2g
 ```
 
-## Basic Grammar
+## ✨ Features
 
-### SCENE
+- 🎯 **Simple Script Language**: Natural language-like syntax, easy to learn
+- 🧮 **Math-Friendly**: Designed specifically for mathematical concept visualization
+- 🎨 **High-Quality Rendering**: High-performance 2D rendering engine based on Go
+- 📁 **Auto File Management**: Smart PNG extension handling and file organization
+- 🐛 **Debug Support**: Detailed error messages and execution tracing
+
+## 📚 Documentation
+
+- 📖 [Complete Syntax Manual](docs/SYNTAX_MANUAL.md) - Full language reference
+- 🏗️ [Architecture Guide](docs/ARCHITECTURE.md) - Technical architecture details
+- 🎬 [Animation Guide](docs/ANIMATION_GUIDE.md) - Animation system documentation
+- 📋 [Project Overview](docs/README.md) - Comprehensive project guide
+
+## 🎓 Learning Path
+
+### 1. Tutorials (start here)
+- [`scripts/tutorials/basic_shapes.r2g`](scripts/tutorials/basic_shapes.r2g) - Basic geometric shapes
+- [`scripts/tutorials/circle_demo.r2g`](scripts/tutorials/circle_demo.r2g) - Simple animations
+
+### 2. Examples (advanced features)
+- [`scripts/examples/pythagoras.r2g`](scripts/examples/pythagoras.r2g) - Pythagorean theorem demonstration
+- [`scripts/examples/math_animation.r2g`](scripts/examples/math_animation.r2g) - Mathematical animations
+- [`scripts/examples/circle_circumference.r2g`](scripts/examples/circle_circumference.r2g) - Circle animations
+
+## 🔧 Usage
+
+### Basic Commands
+```bash
+# Execute a script file
+./render2go script_file.r2g
+
+# Enable debug mode
+./render2go -debug script_file.r2g
+
+# Interactive mode
+./render2go -interactive
+
+# Clean output files
+./render2go -clean
+
+# Show help
+./render2go -help
+```
+
+### Example Output
+```
+🎬 Executing script: hello.r2g
+✅ Script execution completed successfully!
+```
+
+Generated files: `output/hello_world/frames/hello.png`
+
+## 📝 Language Syntax
+
+### Scene Setup
 ```r2g
-scene 800 600 "my_project"
+scene width height "project_name"
 ```
 
-### CREATE
+### Object Creation
 ```r2g
-TEXT
-create text title "Hello World" 24 (400, 100)
-
-CIRCLE
-create circle shape 50 (400, 300)
-
-RECTANGLE
-create rectangle box 100 80 (200, 200)
-
-LINE
-create line connector (100, 100) (200, 200)
-
-ARROW
-create arrow pointer (150, 150) (250, 250)
-
-POLYGON
-create polygon star [(300, 160), (320, 200), (360, 200)]
+create circle my_circle 50 (400, 300)
+create triangle my_triangle 100 (500, 400)
+create rectangle my_rect 200 100 (300, 200)
+create line my_line (0, 0) (100, 100)
+create text my_text "Hello" (400, 300)
 ```
 
-### SET
+### Property Settings
 ```r2g
-set title.color = lightpurple
-set shape.color = midblue
-set shape.opacity = 0.8
+set my_circle.color = "#FF0000"
+set my_circle.opacity = 0.8
+set my_circle.position = (200, 300)
 ```
 
-### RENDER
+### Animations
 ```r2g
-render
-save "output.png"
+animate my_circle position (100, 100) (500, 400) 2.0
+animate my_circle color "#FF0000" "#0000FF" 1.5
+animate my_circle opacity 1.0 0.0 2.0
 ```
 
-## COLOR MANAGEMENT
-
-- `darkcolor` - #0a2639
-- `purpleblue` - #196090
-- `midblue` - #3498db
-- `cyanblue` - #8bc4ea
-- `lightpurple` - #d4e9f7
-
-## STRACTURE
-
-```
-render2go/
-├── cmd/render2go/           
-├── interpreter/           
-│   ├── lexer.go          
-│   ├── parser.go         
-│   ├── evaluator.go      
-│   └── interpreter.go    
-├── scripts/              
-│   ├── main.r2g         
-│   ├── simple.r2g      
-│   ├── advanced.r2g     
-│   └── showcase.r2g     
-├── output/               
-└── examples/            
+### File Operations
+```r2g
+save "frame_name"
+wait 1.0
 ```
 
-## EXAMPLES
+## 🏗️ Project Structure
 
-### 1
-```gma
-scene 400 300 "hello_world"
+```
+Render2Go/
+├── docs/                     # 📚 Documentation
+├── cmd/render2go/           # 🚀 Command-line tool
+├── core/                    # 🔧 Core modules
+├── interpreter/             # 🧠 Script interpreter
+├── geometry/                # 📐 Geometric shapes
+├── animation/               # 🎬 Animation system
+├── renderer/                # 🎨 Rendering engine
+├── scene/                   # 🎭 Scene management
+├── math/                    # 🧮 Math utilities
+├── colors/                  # 🌈 Color system
+├── scripts/                 # 📝 All example scripts (merged)
+│   ├── basic_shapes.r2g    # Basic tutorials
+│   ├── math_animation.r2g  # Advanced examples
+│   ├── chinese_test.r2g    # Chinese text support
+│   └── ...                 # More scripts
+└── output/                  # 📁 Generated files (use -clean to clear)
+```
+
+## 🎯 Use Cases
+
+### Educational Scenarios
+- Mathematical theorem demonstrations (Pythagorean theorem, geometric transformations)
+- Physics concept visualization (motion, waves)
+- Algorithm animation demonstrations
+
+### Creative Projects
+- Artistic graphics generation
+- Data visualization
+- Interactive demonstrations
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests and documentation
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🌟 Acknowledgments
+
+- Built with Go and the [gg](https://github.com/fogleman/gg) 2D graphics library
+- Inspired by mathematical animation frameworks
+- Designed for educational and creative use
+
+---
+
+*Render2Go - Making mathematical animations simple*
 
 create text greeting "Hello Render2Go!" 24 (200, 150)
 set greeting.color = lightpurple

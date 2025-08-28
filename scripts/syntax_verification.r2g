@@ -1,0 +1,21 @@
+// 语法手册示例验证脚本
+scene 800 600 "syntax_test"
+
+// 测试基本几何图形创建
+create circle test_circle 50 (200, 300)
+set test_circle.color = "#3366CC"
+set test_circle.opacity = 0.8
+
+create triangle test_triangle 80 (400, 300)
+set test_triangle.color = "#CC3366"
+
+create line test_line (100, 100) (300, 200)
+set test_line.color = "#33CC66"
+
+// 测试文本创建
+create text test_title "语法测试成功!" 24 (400, 500)
+set test_title.color = "#2C3E50"
+
+// 测试保存和渲染
+save "syntax_verification"
+render

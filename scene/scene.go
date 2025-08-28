@@ -3,38 +3,59 @@ package scene
 import (
 	"render2go/animation"
 	"render2go/core"
+	gmMath "render2go/math"
 	"render2go/renderer"
+	"strings"
 	"time"
 )
 
-// Scene 场景，类似于Manim中的Scene
+// Scene 场景，Render2Go 场景系统
 type Scene struct {
-	objects     []core.Mobject
-	animations  []animation.Animation
-	renderer    renderer.Renderer
-	width       int
-	height      int
-	background  [3]float64 // RGB background color
-	isPlaying   bool
-	startTime   time.Time
-	currentTime time.Duration
+	objects          []core.Mobject
+	renderer         renderer.Renderer
+	width            int
+	height           int
+	background       [3]float64 // RGB background color
+	coordinateSystem *gmMath.CoordinateSystem
 }
 
-// NewScene 创建新场景
+// NewScene 创建新场景，默认1920*1080分辨率
 func NewScene(width, height int) *Scene {
-	return &Scene{
-		objects:    make([]core.Mobject, 0),
-		animations: make([]animation.Animation, 0),
-		width:      width,
-		height:     height,
-		background: [3]float64{0.0, 0.0, 0.0}, // 黑色背景
-		isPlaying:  false,
+	// 如果没有指定分辨率，使用默认的1920*1080
+	if width <= 0 {
+		width = 1920
 	}
+	if height <= 0 {
+		height = 1080
+	}
+
+	return &Scene{
+		objects:          make([]core.Mobject, 0),
+		width:            width,
+		height:           height,
+		background:       [3]float64{1.0, 1.0, 1.0}, // 白色背景
+		coordinateSystem: gmMath.NewCoordinateSystem(width, height),
+	}
+}
+
+// NewDefaultScene 创建默认1920*1080场景
+func NewDefaultScene() *Scene {
+	return NewScene(1920, 1080)
+}
+
+// GetCoordinateSystem 获取坐标系统
+func (s *Scene) GetCoordinateSystem() *gmMath.CoordinateSystem {
+	return s.coordinateSystem
 }
 
 // SetRenderer 设置渲染器
 func (s *Scene) SetRenderer(r renderer.Renderer) {
 	s.renderer = r
+}
+
+// GetRenderer 获取渲染器
+func (s *Scene) GetRenderer() renderer.Renderer {
+	return s.renderer
 }
 
 // Add 添加对象到场景
@@ -55,17 +76,33 @@ func (s *Scene) Remove(object core.Mobject) {
 // Clear 清空场景
 func (s *Scene) Clear() {
 	s.objects = s.objects[:0]
-	s.animations = s.animations[:0]
 }
 
-// Play 播放动画
-func (s *Scene) Play(anims ...animation.Animation) {
-	s.animations = append(s.animations, anims...)
+// PlayAnimation 播放单个动画到完成
+func (s *Scene) PlayAnimation(anim animation.Animation) {
+	anim.Reset()
 
-	if !s.isPlaying {
-		s.isPlaying = true
-		s.startTime = time.Now()
-		s.runAnimationLoop()
+	// 计算动画步数 (假设30fps)
+	fps := 30.0
+	duration := anim.GetDuration()
+	totalFrames := int(duration.Seconds() * fps)
+
+	for frame := 0; frame <= totalFrames; frame++ {
+		progress := float64(frame) / float64(totalFrames)
+		if progress > 1.0 {
+			progress = 1.0
+		}
+
+		anim.Update(progress)
+
+		// 渲染当前帧
+		if s.renderer != nil {
+			s.render()
+		}
+
+		if anim.IsFinished() {
+			break
+		}
 	}
 }
 
@@ -75,7 +112,7 @@ func (s *Scene) Wait(duration time.Duration) {
 	waitAnim := &WaitAnimation{
 		BaseAnimation: animation.NewBaseAnimation(nil, duration),
 	}
-	s.Play(waitAnim)
+	s.PlayAnimation(waitAnim)
 }
 
 // WaitAnimation 等待动画
@@ -86,49 +123,6 @@ type WaitAnimation struct {
 func (w *WaitAnimation) Update(progress float64) {
 	if progress >= 1.0 {
 		w.BaseAnimation.SetFinished(true)
-	}
-}
-
-// runAnimationLoop 运行动画循环
-func (s *Scene) runAnimationLoop() {
-	ticker := time.NewTicker(16 * time.Millisecond) // ~60 FPS
-	defer ticker.Stop()
-
-	for s.isPlaying {
-		select {
-		case <-ticker.C:
-			s.update()
-			s.render()
-		}
-
-		// 检查是否所有动画都完成了
-		allFinished := true
-		for _, anim := range s.animations {
-			if !anim.IsFinished() {
-				allFinished = false
-				break
-			}
-		}
-
-		if allFinished {
-			s.isPlaying = false
-			s.animations = s.animations[:0] // 清空完成的动画
-		}
-	}
-}
-
-// update 更新场景状态
-func (s *Scene) update() {
-	s.currentTime = time.Since(s.startTime)
-
-	for _, anim := range s.animations {
-		if !anim.IsFinished() {
-			progress := float64(s.currentTime) / float64(anim.GetDuration())
-			if progress > 1.0 {
-				progress = 1.0
-			}
-			anim.Update(progress)
-		}
 	}
 }
 
@@ -178,6 +172,10 @@ func (s *Scene) Construct() {
 // SaveFrame 保存当前帧
 func (s *Scene) SaveFrame(filename string) error {
 	if s.renderer != nil {
+		// 确保文件名有.png扩展名
+		if !strings.HasSuffix(filename, ".png") {
+			filename = filename + ".png"
+		}
 		// 使用简单的文件路径保存
 		return s.renderer.SaveFrame(filename)
 	}
@@ -242,7 +240,7 @@ func (ab *AnimationBuilder) Build() animation.Animation {
 // Play 构建并播放动画
 func (ab *AnimationBuilder) Play() {
 	anim := ab.Build()
-	ab.scene.Play(anim)
+	ab.scene.PlayAnimation(anim)
 }
 
 // SaveFrameWithTimestamp 保存当前帧（自动添加时间戳）

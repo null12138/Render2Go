@@ -193,6 +193,24 @@ func (ws *WaitStatement) String() string {
 	return fmt.Sprintf("wait %s", ws.Duration.String())
 }
 
+// 清空语句
+type CleanStatement struct {
+	Token Token
+	Dirs  []Expression // 要清空的目录列表，如果为空则默认清空output和scripts
+}
+
+func (cs *CleanStatement) statementNode() {}
+func (cs *CleanStatement) String() string {
+	if len(cs.Dirs) == 0 {
+		return "clean"
+	}
+	var dirs []string
+	for _, d := range cs.Dirs {
+		dirs = append(dirs, d.String())
+	}
+	return fmt.Sprintf("clean %s", strings.Join(dirs, ", "))
+}
+
 // 循环语句
 type LoopStatement struct {
 	Token      Token
@@ -280,6 +298,8 @@ func (p *Parser) parseStatement() Statement {
 		return p.parseWaitStatement()
 	case TOKEN_LOOP:
 		return p.parseLoopStatement()
+	case TOKEN_CLEAN:
+		return p.parseCleanStatement()
 	default:
 		p.noPrefixParseFnError(p.curToken.Type)
 		return nil
@@ -431,6 +451,27 @@ func (p *Parser) parseWaitStatement() *WaitStatement {
 	return stmt
 }
 
+// parseCleanStatement 解析清空语句
+func (p *Parser) parseCleanStatement() *CleanStatement {
+	stmt := &CleanStatement{Token: p.curToken}
+	stmt.Dirs = []Expression{}
+
+	// 如果后面跟着字符串，则解析为目录列表
+	if p.peekTokenIs(TOKEN_STRING) {
+		for p.peekTokenIs(TOKEN_STRING) {
+			p.nextToken()
+			stmt.Dirs = append(stmt.Dirs, p.parseStringLiteral())
+
+			if !p.peekTokenIs(TOKEN_COMMA) {
+				break
+			}
+			p.nextToken() // 跳过逗号
+		}
+	}
+
+	return stmt
+}
+
 // parseLoopStatement 解析循环语句
 func (p *Parser) parseLoopStatement() *LoopStatement {
 	stmt := &LoopStatement{Token: p.curToken}
@@ -576,14 +617,17 @@ func (p *Parser) expectPeek(t TokenType) bool {
 }
 
 func (p *Parser) expectPeekObjectType() bool {
-	types := []TokenType{TOKEN_CIRCLE, TOKEN_RECT, TOKEN_LINE, TOKEN_ARROW, TOKEN_POLYGON, TOKEN_TEXT}
+	types := []TokenType{TOKEN_CIRCLE, TOKEN_TRIANGLE, TOKEN_RECT, TOKEN_LINE, TOKEN_ARROW, TOKEN_POLYGON, TOKEN_TEXT}
 	for _, t := range types {
 		if p.peekTokenIs(t) {
 			p.nextToken()
 			return true
 		}
 	}
-	p.errors = append(p.errors, fmt.Sprintf("expected object type, got %s", p.peekToken.Type))
+
+	typeNames := []string{"circle", "triangle", "rectangle", "line", "arrow", "polygon", "text"}
+	p.errors = append(p.errors, fmt.Sprintf("行 %d: 需要对象类型（%s），但得到了 '%s'",
+		p.peekToken.Line, strings.Join(typeNames, ", "), p.peekToken.Literal))
 	return false
 }
 
@@ -595,7 +639,9 @@ func (p *Parser) expectPeekProperty() bool {
 			return true
 		}
 	}
-	p.errors = append(p.errors, fmt.Sprintf("expected property, got %s", p.peekToken.Type))
+	propNames := []string{"color", "size", "position", "opacity", "width", "height"}
+	p.errors = append(p.errors, fmt.Sprintf("行 %d: 需要属性名（%s），但得到了 '%s'",
+		p.peekToken.Line, strings.Join(propNames, ", "), p.peekToken.Literal))
 	return false
 }
 
@@ -607,17 +653,62 @@ func (p *Parser) expectPeekAnimationType() bool {
 			return true
 		}
 	}
-	p.errors = append(p.errors, fmt.Sprintf("expected animation type, got %s", p.peekToken.Type))
+	animNames := []string{"move", "scale", "rotate", "fadein", "fadeout"}
+	p.errors = append(p.errors, fmt.Sprintf("行 %d: 需要动画类型（%s），但得到了 '%s'",
+		p.peekToken.Line, strings.Join(animNames, ", "), p.peekToken.Literal))
 	return false
 }
 
 func (p *Parser) peekError(t TokenType) {
-	msg := fmt.Sprintf("expected next token to be %s, got %s instead", t, p.peekToken.Type)
+	var expected string
+
+	switch t {
+	case TOKEN_NUMBER:
+		expected = "数字"
+	case TOKEN_STRING:
+		expected = "字符串"
+	case TOKEN_IDENT:
+		expected = "标识符"
+	case TOKEN_ASSIGN:
+		expected = "="
+	case TOKEN_LPAREN:
+		expected = "("
+	case TOKEN_RPAREN:
+		expected = ")"
+	case TOKEN_LBRACE:
+		expected = "{"
+	case TOKEN_RBRACE:
+		expected = "}"
+	case TOKEN_LBRACKET:
+		expected = "["
+	case TOKEN_RBRACKET:
+		expected = "]"
+	case TOKEN_COMMA:
+		expected = ","
+	case TOKEN_DOT:
+		expected = "."
+	default:
+		expected = fmt.Sprintf("%s", t)
+	}
+
+	msg := fmt.Sprintf("行 %d: 需要 %s，但得到了 '%s'",
+		p.peekToken.Line, expected, p.peekToken.Literal)
 	p.errors = append(p.errors, msg)
 }
 
 func (p *Parser) noPrefixParseFnError(t TokenType) {
-	msg := fmt.Sprintf("no prefix parse function for %s found", t)
+	var suggestion string
+
+	switch t {
+	case TOKEN_ILLEGAL:
+		suggestion = "请检查输入是否存在非法字符"
+	case TOKEN_EOF:
+		suggestion = "脚本意外结束"
+	default:
+		suggestion = fmt.Sprintf("未知语句类型: %s", t)
+	}
+
+	msg := fmt.Sprintf("行 %d: %s", p.curToken.Line, suggestion)
 	p.errors = append(p.errors, msg)
 }
 

@@ -1,0 +1,34 @@
+// 简化版圆周长推导演示
+scene 1920 1080 "circle_demo"
+
+// 创建标题
+create text title "圆周长推导: C = 2πr" 48 (960, 100)
+set title.color = "#111111"
+
+// 创建圆
+create circle main_circle 250 (960, 550)
+set main_circle.color = "#3366CC"
+set main_circle.opacity = 0.8
+
+// 创建半径线
+create line radius_line (960, 550) (1210, 550)
+set radius_line.color = "#CC3333"
+
+// 创建半径标签
+create text radius_label "r" 36 (1085, 510)
+set radius_label.color = "#CC3333"
+
+// 创建公式
+create text formula "圆周长 C = 2πr" 48 (960, 900)
+set formula.color = "#111111"
+
+// 创建π的解释
+create text pi_explanation "其中π ≈ 3.14159..." 30 (960, 970)
+set pi_explanation.color = "#333333"
+
+// 渲染初始画面
+render
+save "circle_demo"
+
+// 清理输出目录
+// clean "output"

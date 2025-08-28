@@ -1,0 +1,48 @@
+# 高级中文字体测试 - 测试不同字体大小和特殊字符
+scene 1000 800 "advanced_chinese_test"
+
+# 超大标题
+create text mega_title "高分辨率中文字体" 72 (500, 700)
+set mega_title.color = "#DD0000"
+
+# 常用汉字测试
+create text common_chars "常用汉字：一二三四五六七八九十" 36 (500, 600)
+set common_chars.color = "#0066CC"
+
+# 复杂汉字测试
+create text complex_chars "复杂汉字：龍鳳麒麟饕餮" 32 (500, 540)
+set complex_chars.color = "#009900"
+
+# 标点符号测试
+create text punctuation "标点符号：，。！？；：「」【】" 28 (500, 480)
+set punctuation.color = "#CC6600"
+
+# 数学符号混合
+create text math_symbols "数学：∑∏∫∞±√×÷≈≠≤≥∈∉∩∪⊂⊃" 24 (500, 420)
+set math_symbols.color = "#8B4513"
+
+# 英中混合长文本
+create text mixed_long "This is English, 这是中文, 123数字, αβγ希腊字母" 22 (500, 360)
+set mixed_long.color = "#4B0082"
+
+# 古典诗词测试
+create text poetry1 "床前明月光，疑是地上霜。" 26 (500, 300)
+set poetry1.color = "#2F4F4F"
+
+create text poetry2 "举头望明月，低头思故乡。" 26 (500, 260)
+set poetry2.color = "#2F4F4F"
+
+# 现代科技词汇
+create text tech_terms "人工智能 | 机器学习 | 深度学习 | 神经网络" 20 (500, 200)
+set tech_terms.color = "#FF4500"
+
+# 小字体可读性测试
+create text small_readable "小字体可读性测试：人工智能技术正在快速发展" 14 (500, 140)
+set small_readable.color = "#708090"
+
+# 版权信息
+create text copyright "© 2024 Render2Go 中文字体渲染测试" 16 (500, 80)
+set copyright.color = "#A9A9A9"
+
+save "advanced_chinese_test"
+render

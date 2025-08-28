@@ -1,0 +1,143 @@
+// 圆周长推导演示
+scene 1920 1080 "circle_circumference"
+
+// 创建标题
+create text title "圆周长推导: C = 2πr" 48 (960, 100)
+set title.color = "#111111"
+
+// 创建圆
+create circle main_circle 250 (960, 550)
+set main_circle.color = "#3366CC"
+set main_circle.opacity = 0.8
+
+// 创建半径线
+create line radius_line (960, 550) (1210, 550)
+set radius_line.color = "#CC3333"
+
+// 创建半径标签
+create text radius_label "r" 36 (1085, 510)
+set radius_label.color = "#CC3333"
+
+// 渲染初始画面
+render
+save "circle_circumference/frame_01"
+
+// 创建圆心
+create circle center_point 5 (960, 550)
+set center_point.color = "#111111"
+
+// 创建圆心标签
+create text center_label "O" 24 (940, 550)
+set center_label.color = "#111111"
+
+// 渲染圆心
+render
+save "circle_circumference/frame_02"
+
+// 添加多个半径线条，呈现正多边形近似
+create line radius_2 (960, 550) (960 + 250 * 0.866, 550 - 250 * 0.5)
+set radius_2.color = "#CC3333"
+
+create line radius_3 (960, 550) (960 + 250 * 0.5, 550 - 250 * 0.866)
+set radius_3.color = "#CC3333"
+
+create line radius_4 (960, 550) (960, 550 - 250)
+set radius_4.color = "#CC3333"
+
+create line radius_5 (960, 550) (960 - 250 * 0.5, 550 - 250 * 0.866)
+set radius_5.color = "#CC3333"
+
+create line radius_6 (960, 550) (960 - 250 * 0.866, 550 - 250 * 0.5)
+set radius_6.color = "#CC3333"
+
+create line radius_7 (960, 550) (960 - 250, 550)
+set radius_7.color = "#CC3333"
+
+create line radius_8 (960, 550) (960 - 250 * 0.866, 550 + 250 * 0.5)
+set radius_8.color = "#CC3333"
+
+create line radius_9 (960, 550) (960 - 250 * 0.5, 550 + 250 * 0.866)
+set radius_9.color = "#CC3333"
+
+create line radius_10 (960, 550) (960, 550 + 250)
+set radius_10.color = "#CC3333"
+
+create line radius_11 (960, 550) (960 + 250 * 0.5, 550 + 250 * 0.866)
+set radius_11.color = "#CC3333"
+
+create line radius_12 (960, 550) (960 + 250 * 0.866, 550 + 250 * 0.5)
+set radius_12.color = "#CC3333"
+
+render
+save "circle_circumference/frame_03"
+
+// 创建多边形边
+create line edge_1 (960 + 250, 550) (960 + 250 * 0.866, 550 - 250 * 0.5)
+set edge_1.color = "#009900"
+
+create line edge_2 (960 + 250 * 0.866, 550 - 250 * 0.5) (960 + 250 * 0.5, 550 - 250 * 0.866)
+set edge_2.color = "#009900"
+
+create line edge_3 (960 + 250 * 0.5, 550 - 250 * 0.866) (960, 550 - 250)
+set edge_3.color = "#009900"
+
+create line edge_4 (960, 550 - 250) (960 - 250 * 0.5, 550 - 250 * 0.866)
+set edge_4.color = "#009900"
+
+create line edge_5 (960 - 250 * 0.5, 550 - 250 * 0.866) (960 - 250 * 0.866, 550 - 250 * 0.5)
+set edge_5.color = "#009900"
+
+create line edge_6 (960 - 250 * 0.866, 550 - 250 * 0.5) (960 - 250, 550)
+set edge_6.color = "#009900"
+
+create line edge_7 (960 - 250, 550) (960 - 250 * 0.866, 550 + 250 * 0.5)
+set edge_7.color = "#009900"
+
+create line edge_8 (960 - 250 * 0.866, 550 + 250 * 0.5) (960 - 250 * 0.5, 550 + 250 * 0.866)
+set edge_8.color = "#009900"
+
+create line edge_9 (960 - 250 * 0.5, 550 + 250 * 0.866) (960, 550 + 250)
+set edge_9.color = "#009900"
+
+create line edge_10 (960, 550 + 250) (960 + 250 * 0.5, 550 + 250 * 0.866)
+set edge_10.color = "#009900"
+
+create line edge_11 (960 + 250 * 0.5, 550 + 250 * 0.866) (960 + 250 * 0.866, 550 + 250 * 0.5)
+set edge_11.color = "#009900"
+
+create line edge_12 (960 + 250 * 0.866, 550 + 250 * 0.5) (960 + 250, 550)
+set edge_12.color = "#009900"
+
+render
+save "circle_circumference/frame_04"
+
+// 添加说明文字 - 多边形边与半径的关系
+create text explanation_1 "当正多边形的边数无限增加时，多边形趋近于圆形" 30 (960, 830)
+set explanation_1.color = "#333333"
+
+create text explanation_2 "此时多边形的周长趋近于圆的周长" 30 (960, 880)
+set explanation_2.color = "#333333"
+
+render
+save "circle_circumference/frame_05"
+
+// 添加公式推导
+create text formula_1 "对于正n边形，周长 = n × 边长" 30 (960, 920)
+set formula_1.color = "#333333"
+
+render
+save "circle_circumference/frame_06"
+
+// 显示公式 C = 2πr
+create text formula_2 "当n→∞时，圆的周长 C = 2πr" 36 (960, 970)
+set formula_2.color = "#111111"
+
+render
+save "circle_circumference/frame_07"
+
+// 添加π的解释
+create text pi_explanation "其中π ≈ 3.14159..." 30 (960, 1020)
+set pi_explanation.color = "#333333"
+
+render
+save "circle_circumference/frame_08"

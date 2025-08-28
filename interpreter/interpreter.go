@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"render2go/geometry"
 	"strings"
 )
@@ -110,6 +111,18 @@ func (i *Interpreter) RunString(script, source string) error {
 
 	if i.debug {
 		fmt.Println("✅ Execution completed successfully!")
+	}
+
+	// 自动修复PNG文件扩展名
+	if i.debug {
+		fmt.Println("🔧 Attempting to fix PNG extensions...")
+	}
+	err = i.fixPNGExtensions()
+	if err != nil && i.debug {
+		fmt.Printf("⚠️ Warning: Failed to fix PNG extensions: %v\n", err)
+	}
+	if i.debug {
+		fmt.Println("✅ PNG extension fix completed")
 	}
 
 	return nil
@@ -262,4 +275,97 @@ func (i *Interpreter) listObjects() {
 // GetEvaluator 获取评估器（用于测试）
 func (i *Interpreter) GetEvaluator() *Evaluator {
 	return i.evaluator
+}
+
+// fixPNGExtensions 自动修复输出目录中的PNG文件扩展名
+func (i *Interpreter) fixPNGExtensions() error {
+	outputPath := "output"
+
+	// 检查输出目录是否存在
+	if _, err := os.Stat(outputPath); os.IsNotExist(err) {
+		return nil // 输出目录不存在，无需处理
+	}
+
+	// 遍历输出目录中的所有文件
+	return filepath.Walk(outputPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// 跳过目录
+		if info.IsDir() {
+			return nil
+		}
+
+		// 检查没有扩展名且大于4字节的文件
+		if filepath.Ext(path) == "" && info.Size() > 4 {
+			// 读取文件头部检查是否为PNG
+			func() {
+				file, err := os.Open(path)
+				if err != nil {
+					return // 跳过无法读取的文件
+				}
+				defer file.Close()
+
+				header := make([]byte, 4)
+				_, err = file.Read(header)
+				if err != nil {
+					return
+				}
+
+				// PNG文件头部：89 50 4E 47
+				if header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47 {
+					// 确保文件关闭后再重命名
+					file.Close()
+
+					// 重命名文件添加.png扩展名
+					newPath := path + ".png"
+					if i.debug {
+						fmt.Printf("🔧 Attempting to rename: %s -> %s\n", path, newPath)
+					}
+					err = os.Rename(path, newPath)
+					if err != nil {
+						if i.debug {
+							fmt.Printf("❌ Rename failed: %v\n", err)
+						}
+						// 如果重命名失败，尝试复制+删除
+						err = i.copyAndDelete(path, newPath)
+						if err == nil && i.debug {
+							fmt.Printf("🔧 Fixed PNG extension via copy+delete: %s -> %s\n", filepath.Base(path), filepath.Base(newPath))
+						}
+					} else if i.debug {
+						fmt.Printf("🔧 Fixed PNG extension: %s -> %s\n", filepath.Base(path), filepath.Base(newPath))
+					}
+				}
+			}()
+		}
+
+		return nil
+	})
+}
+
+// copyAndDelete 复制文件到新位置并删除原文件
+func (i *Interpreter) copyAndDelete(src, dst string) error {
+	// 打开源文件
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	// 创建目标文件
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	// 复制文件内容
+	_, err = io.Copy(dstFile, srcFile)
+	if err != nil {
+		return err
+	}
+
+	// 删除原文件
+	return os.Remove(src)
 }

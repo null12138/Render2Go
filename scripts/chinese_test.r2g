@@ -1,0 +1,26 @@
+# 中文字体测试脚本
+scene 800 600 "chinese_test"
+
+# 添加标题 - 大字体
+create text title "中文字体测试" 48 (400, 500)
+set title.color = "#FF0000"
+
+# 添加副标题 - 中字体  
+create text subtitle "支持中文渲染" 32 (400, 400)
+set subtitle.color = "#0000FF"
+
+# 添加描述文本 - 小字体
+create text description "现在可以正确显示中文字符了" 24 (400, 320)
+set description.color = "#00AA00"
+
+# 添加数学公式文本
+create text formula "数学公式：E = mc²" 28 (400, 240)
+set formula.color = "#AA00AA"
+
+# 添加混合文本
+create text mixed "Mixed 混合 Text 文本" 26 (400, 160)
+set mixed.color = "#FF6600"
+
+# 渲染场景
+save "chinese_test"
+render

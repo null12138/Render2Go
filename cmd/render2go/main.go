@@ -16,6 +16,7 @@ func main() {
 		debug       = flag.Bool("debug", false, "Enable debug mode")
 		help        = flag.Bool("help", false, "Show help information")
 		version     = flag.Bool("version", false, "Show version information")
+		clean       = flag.Bool("clean", false, "Clean output directory")
 	)
 
 	flag.Parse()
@@ -30,6 +31,12 @@ func main() {
 	// 显示帮助信息
 	if *help {
 		printUsage()
+		return
+	}
+
+	// 清理输出目录
+	if *clean {
+		cleanOutput()
 		return
 	}
 
@@ -111,6 +118,7 @@ OPTIONS:
     -file <file>        Execute the specified script file
     -i                  Run in interactive mode
     -debug              Enable debug mode (shows tokens and AST)
+    -clean              Clean output directory (remove all generated files)
     -help               Show this help message
     -version            Show version information
 
@@ -122,6 +130,7 @@ EXAMPLES:
     render2go -file animation.r2g     # Execute animation.r2g
     render2go -i                      # Start interactive mode
     render2go -debug script.r2g       # Execute with debug output
+    render2go -clean                  # Clean output directory
 
 SCRIPT LANGUAGE:
     The Render2Go scripting language supports:
@@ -173,4 +182,52 @@ func fileExists(filename string) bool {
 // getFileExtension 获取文件扩展名
 func getFileExtension(filename string) string {
 	return filepath.Ext(filename)
+}
+
+// cleanOutput 清理输出目录
+func cleanOutput() {
+	outputDir := "output"
+
+	// 检查output目录是否存在
+	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
+		fmt.Println("🧹 Output directory does not exist, nothing to clean.")
+		return
+	}
+
+	// 获取output目录下的所有内容
+	entries, err := os.ReadDir(outputDir)
+	if err != nil {
+		fmt.Printf("❌ Error reading output directory: %v\n", err)
+		return
+	}
+
+	if len(entries) == 0 {
+		fmt.Println("🧹 Output directory is already empty.")
+		return
+	}
+
+	fmt.Printf("🧹 Cleaning output directory...\n")
+
+	deletedCount := 0
+	errorCount := 0
+
+	// 删除所有子目录和文件
+	for _, entry := range entries {
+		path := filepath.Join(outputDir, entry.Name())
+		err := os.RemoveAll(path)
+		if err != nil {
+			fmt.Printf("❌ Failed to remove '%s': %v\n", path, err)
+			errorCount++
+		} else {
+			fmt.Printf("   🗑️  Removed: %s\n", entry.Name())
+			deletedCount++
+		}
+	}
+
+	// 显示清理结果
+	if errorCount == 0 {
+		fmt.Printf("✅ Successfully cleaned output directory! Removed %d items.\n", deletedCount)
+	} else {
+		fmt.Printf("⚠️  Partially cleaned output directory. Removed %d items, %d errors.\n", deletedCount, errorCount)
+	}
 }

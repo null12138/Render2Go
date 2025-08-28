@@ -35,14 +35,16 @@ const (
 	TOKEN_IF      // if
 	TOKEN_ELSE    // else
 	TOKEN_END     // end
+	TOKEN_CLEAN   // clean
 
 	// 几何类型
-	TOKEN_CIRCLE  // circle
-	TOKEN_RECT    // rectangle
-	TOKEN_LINE    // line
-	TOKEN_ARROW   // arrow
-	TOKEN_POLYGON // polygon
-	TOKEN_TEXT    // text
+	TOKEN_CIRCLE   // circle
+	TOKEN_TRIANGLE // triangle
+	TOKEN_RECT     // rectangle
+	TOKEN_LINE     // line
+	TOKEN_ARROW    // arrow
+	TOKEN_POLYGON  // polygon
+	TOKEN_TEXT     // text
 
 	// 动画类型
 	TOKEN_MOVE     // move
@@ -110,7 +112,9 @@ var keywords = map[string]TokenType{
 	"if":        TOKEN_IF,
 	"else":      TOKEN_ELSE,
 	"end":       TOKEN_END,
+	"clean":     TOKEN_CLEAN,
 	"circle":    TOKEN_CIRCLE,
+	"triangle":  TOKEN_TRIANGLE,
 	"rectangle": TOKEN_RECT,
 	"line":      TOKEN_LINE,
 	"arrow":     TOKEN_ARROW,
@@ -189,10 +193,15 @@ func (l *Lexer) readIdentifier() string {
 	return l.input[position:l.position]
 }
 
-// readNumber 读取数字
+// readNumber 读取数字（支持负数）
 func (l *Lexer) readNumber() string {
 	position := l.position
 	hasDot := false
+
+	// 检查是否有负号
+	if l.ch == '-' {
+		l.readChar()
+	}
 
 	for isDigit(l.ch) || (l.ch == '.' && !hasDot) {
 		if l.ch == '.' {
@@ -236,7 +245,21 @@ func (l *Lexer) NextToken() Token {
 	case '+':
 		tok = Token{Type: TOKEN_PLUS, Literal: string(l.ch), Line: l.line, Column: l.column}
 	case '-':
-		tok = Token{Type: TOKEN_MINUS, Literal: string(l.ch), Line: l.line, Column: l.column}
+		// 检查下一个字符是否是数字，如果是则视为负数的一部分
+		if isDigit(l.peekChar()) {
+			// 读取整个负数
+			l.readChar()
+			tok.Type = TOKEN_NUMBER
+			tok.Literal = l.readNumber()
+			tok.Line = l.line
+			tok.Column = l.column
+			// 在数字前添加负号
+			tok.Literal = "-" + tok.Literal
+			return tok
+		} else {
+			// 否则视为减号操作符
+			tok = Token{Type: TOKEN_MINUS, Literal: string(l.ch), Line: l.line, Column: l.column}
+		}
 	case '*':
 		tok = Token{Type: TOKEN_MULTIPLY, Literal: string(l.ch), Line: l.line, Column: l.column}
 	case '/':
@@ -273,11 +296,19 @@ func (l *Lexer) NextToken() Token {
 		tok.Line = l.line
 		tok.Column = l.column
 	case '#':
-		tok.Type = TOKEN_COLOR
-		tok.Literal = l.readColor()
-		tok.Line = l.line
-		tok.Column = l.column
-		return tok // 不调用 readChar()，因为 readColor 已经处理了
+		// 检查是否为注释
+		if l.peekChar() == ' ' || l.peekChar() == '\t' || isLetter(l.peekChar()) {
+			// 这是注释，跳过整行
+			l.skipComment()
+			return l.NextToken() // 递归获取下一个标记
+		} else {
+			// 这是颜色值
+			tok.Type = TOKEN_COLOR
+			tok.Literal = l.readColor()
+			tok.Line = l.line
+			tok.Column = l.column
+			return tok // 不调用 readChar()，因为 readColor 已经处理了
+		}
 	case 0:
 		tok.Literal = ""
 		tok.Type = TOKEN_EOF
@@ -395,6 +426,8 @@ func (tt TokenType) String() string {
 		return "ELSE"
 	case TOKEN_END:
 		return "END"
+	case TOKEN_CLEAN:
+		return "CLEAN"
 	case TOKEN_CIRCLE:
 		return "CIRCLE"
 	case TOKEN_RECT:

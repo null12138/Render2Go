@@ -1,0 +1,69 @@
+# 数学公式中文测试 - 测试数学教学场景
+scene 1200 900 "math_chinese_test"
+
+# 大标题
+create text main_title "数学公式演示" 64 (600, 800)
+set main_title.color = "#2E8B57"
+
+# 副标题
+create text subtitle "Mathematics in Chinese" 36 (600, 720)
+set subtitle.color = "#4682B4"
+
+# 基础公式
+create text basic_formulas "基础公式 Basic Formulas:" 32 (600, 640)
+set basic_formulas.color = "#8B4513"
+
+# 勾股定理
+create text pythagorean "勾股定理：a² + b² = c²" 28 (600, 580)
+set pythagorean.color = "#DC143C"
+
+# 面积公式
+create text area_formulas "面积公式：圆形 S = πr²，矩形 S = ab" 24 (600, 540)
+set area_formulas.color = "#228B22"
+
+# 微积分
+create text calculus "微积分：∫f(x)dx，导数 f'(x) = lim[h→0] (f(x+h)-f(x))/h" 22 (600, 500)
+set calculus.color = "#4B0082"
+
+# 统计学
+create text statistics "统计学：平均值 x̄ = Σxi/n，标准差 σ = √(Σ(xi-x̄)²/n)" 20 (600, 460)
+set statistics.color = "#B8860B"
+
+# 物理公式
+create text physics "物理公式：牛顿第二定律 F = ma，动能 Ek = ½mv²" 24 (600, 420)
+set physics.color = "#8B008B"
+
+# 化学公式
+create text chemistry "化学公式：H₂O (水)，CO₂ (二氧化碳)，C₆H₁₂O₆ (葡萄糖)" 22 (600, 380)
+set chemistry.color = "#FF4500"
+
+# 三角函数
+create text trigonometry "三角函数：sin²θ + cos²θ = 1，tan θ = sin θ / cos θ" 24 (600, 340)
+set trigonometry.color = "#006400"
+
+# 对数函数
+create text logarithm "对数函数：log₂(8) = 3，ln(e) = 1，log₁₀(100) = 2" 22 (600, 300)
+set logarithm.color = "#CD853F"
+
+# 概率
+create text probability "概率论：P(A∩B) = P(A)×P(B|A)，贝叶斯定理" 20 (600, 260)
+set probability.color = "#9932CC"
+
+# 复数
+create text complex "复数：i² = -1，|z| = √(a² + b²)，z = a + bi" 22 (600, 220)
+set complex.color = "#20B2AA"
+
+# 矩阵
+create text matrix "矩阵：det(A) = |A|，A⁻¹ 为 A 的逆矩阵" 20 (600, 180)
+set matrix.color = "#D2691E"
+
+# 数列
+create text sequence "数列：等差数列 aₙ = a₁ + (n-1)d，等比数列 aₙ = a₁ × rⁿ⁻¹" 18 (600, 140)
+set sequence.color = "#483D8B"
+
+# 极限
+create text limit "极限：lim[x→∞] (1 + 1/x)ˣ = e ≈ 2.71828" 20 (600, 100)
+set limit.color = "#B22222"
+
+save "math_chinese_test"
+render
