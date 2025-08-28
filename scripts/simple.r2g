@@ -1,0 +1,15 @@
+// 简单的测试示例
+scene 400 300 "simple_test"
+
+create text title "Hello Render2Go!" 24 (200, 50)
+set title.color = lightpurple
+
+create circle shape 30 (200, 150)
+set shape.color = midblue
+set shape.opacity = 0.8
+
+create rectangle rect 60 40 (200, 250)
+set rect.color = cyanblue
+
+render
+save "simple_test.png"

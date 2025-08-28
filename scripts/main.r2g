@@ -1,0 +1,65 @@
+// Render2Go Main Script
+// Default script that demonstrates the interpreter capabilities
+
+scene 800 600 "main_demo"
+
+// Create title
+create text title "Render2Go Script Interpreter" 32 (400, 80)
+set title.color = lightpurple
+
+create text subtitle "Professional Blue Theme Demo" 18 (400, 120)
+set subtitle.color = cyanblue
+
+// Create a showcase of different shapes
+create circle shape1 50 (200, 250)
+set shape1.color = midblue
+set shape1.opacity = 0.7
+
+create rectangle shape2 80 60 (400, 250)
+set shape2.color = purpleblue
+set shape2.opacity = 0.7
+
+create polygon shape3 [(550, 200), (650, 200), (620, 280), (580, 280)]
+set shape3.color = cyanblue
+set shape3.opacity = 0.7
+
+// Create connecting elements
+create line connector1 (250, 250) (350, 250)
+set connector1.color = darkcolor
+
+create line connector2 (450, 250) (530, 240)
+set connector2.color = darkcolor
+
+// Create decorative arrows
+create arrow arrow1 (150, 350) (250, 350)
+set arrow1.color = lightpurple
+
+create arrow arrow2 (350, 350) (450, 350)
+set arrow2.color = lightpurple
+
+create arrow arrow3 (550, 350) (650, 350)
+set arrow3.color = lightpurple
+
+// Add feature text
+create text feature1 "Lexical Analysis" 14 (200, 380)
+set feature1.color = midblue
+
+create text feature2 "Syntax Parsing" 14 (400, 380)
+set feature2.color = midblue
+
+create text feature3 "Code Execution" 14 (600, 380)
+set feature3.color = midblue
+
+// Add footer
+create text footer1 "✓ Independent from Go environment" 14 (400, 500)
+set footer1.color = cyanblue
+
+create text footer2 "✓ Simple scripting language" 14 (400, 520)
+set footer2.color = cyanblue
+
+create text footer3 "✓ Professional color schemes" 14 (400, 540)
+set footer3.color = cyanblue
+
+// Render and save
+render
+save "main_demo.png"
