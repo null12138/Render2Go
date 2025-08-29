@@ -1,0 +1,42 @@
+# 构建输出
+*.exe
+*.dll
+*.so
+*.dylib
+dist/
+build/
+
+# 临时文件
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# IDE 文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 日志文件
+*.log
+
+# 输出目录
+output/
+*.png
+*.jpg
+*.gif
+*.mp4
+
+# 依赖
+vendor/
+node_modules/
+
+# 操作系统
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

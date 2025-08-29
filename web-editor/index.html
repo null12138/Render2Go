@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Render2Go 可视化脚本编辑器</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/editor.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <!-- 顶部工具栏 -->
+    <header class="toolbar">
+        <div class="toolbar-left">
+            <div class="logo">
+                <i class="fas fa-film"></i>
+                <span>Render2Go Editor</span>
+            </div>
+            <div class="toolbar-buttons">
+                <button class="btn btn-primary" id="newProject">
+                    <i class="fas fa-plus"></i> 新建项目
+                </button>
+                <button class="btn btn-secondary" id="openProject">
+                    <i class="fas fa-folder-open"></i> 打开
+                </button>
+                <button class="btn btn-secondary" id="saveProject">
+                    <i class="fas fa-save"></i> 保存
+                </button>
+                <button class="btn btn-success" id="exportScript">
+                    <i class="fas fa-download"></i> 导出脚本
+                </button>
+                <div class="toolbar-separator"></div>
+                <button class="btn btn-icon" id="undoBtn" title="撤销">
+                    <i class="fas fa-undo"></i>
+                </button>
+                <button class="btn btn-icon" id="redoBtn" title="重做">
+                    <i class="fas fa-redo"></i>
+                </button>
+                <div class="toolbar-separator"></div>
+                <button class="btn btn-icon" id="copyBtn" title="复制">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <button class="btn btn-icon" id="pasteBtn" title="粘贴">
+                    <i class="fas fa-paste"></i>
+                </button>
+                <button class="btn btn-icon" id="deleteBtn" title="删除">
+                    <i class="fas fa-trash"></i>
+                </button>
+                <div class="toolbar-separator"></div>
+                <button class="btn btn-warning" id="previewAnimation">
+                    <i class="fas fa-play"></i> 预览
+                </button>
+            </div>
+        </div>
+        <div class="toolbar-right">
+            <div class="project-info">
+                <span id="projectName">未命名项目</span>
+                <span class="scene-info" id="sceneInfo">800 × 600</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主体区域 -->
+    <div class="main-container">
+        <!-- 左侧面板 -->
+        <aside class="left-panel">
+            <!-- 图层面板 -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h3><i class="fas fa-layer-group"></i> 图层</h3>
+                    <button class="btn-icon" id="addLayer">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                <div class="panel-content">
+                    <div id="layersList" class="layers-list">
+                        <!-- 图层项将在这里动态生成 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 对象库面板 -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h3><i class="fas fa-shapes"></i> 对象库</h3>
+                </div>
+                <div class="panel-content">
+                    <div class="object-categories">
+                        <div class="category active" data-category="basic">
+                            <i class="fas fa-cube"></i> 基础图形
+                        </div>
+                        <div class="category" data-category="text">
+                            <i class="fas fa-font"></i> 文本
+                        </div>
+                        <div class="category" data-category="advanced">
+                            <i class="fas fa-star"></i> 高级
+                        </div>
+                    </div>
+                    <div class="objects-grid" id="objectsGrid">
+                        <!-- 对象将在这里动态生成 -->
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 中央编辑区域 -->
+        <main class="center-panel">
+            <!-- 场景编辑器 -->
+            <div class="scene-editor">
+                <div class="scene-header">
+                    <div class="scene-tools">
+                        <button class="tool-btn active" data-tool="select">
+                            <i class="fas fa-mouse-pointer"></i>
+                        </button>
+                        <button class="tool-btn" data-tool="move">
+                            <i class="fas fa-arrows-alt"></i>
+                        </button>
+                        <button class="tool-btn" data-tool="rotate">
+                            <i class="fas fa-redo"></i>
+                        </button>
+                        <button class="tool-btn" data-tool="scale">
+                            <i class="fas fa-expand-arrows-alt"></i>
+                        </button>
+                    </div>
+                    <div class="zoom-controls">
+                        <button class="btn-icon" id="zoomOutBtn">
+                            <i class="fas fa-search-minus"></i>
+                        </button>
+                        <span id="zoomLevel">100%</span>
+                        <button class="btn-icon" id="zoomInBtn">
+                            <i class="fas fa-search-plus"></i>
+                        </button>
+                        <button class="btn-icon" id="fitScreenBtn">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="scene-container">
+                    <div class="scene-viewport" id="sceneViewport">
+                        <div class="scene-canvas" id="sceneCanvas">
+                            <!-- 场景对象将在这里渲染 -->
+                            <div class="grid-overlay" id="gridOverlay"></div>
+                            <div class="objects-container" id="objectsContainer"></div>
+                            <div class="selection-indicator" id="selectionIndicator"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 时间轴 -->
+            <div class="timeline-panel">
+                <div class="timeline-header">
+                    <h3><i class="fas fa-clock"></i> 时间轴</h3>
+                    <div class="playback-controls">
+                        <button class="btn-icon" id="playBtn">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button class="btn-icon" id="pauseBtn" style="display: none;">
+                            <i class="fas fa-pause"></i>
+                        </button>
+                        <button class="btn-icon" id="stopBtn">
+                            <i class="fas fa-stop"></i>
+                        </button>
+                        <div class="time-display">
+                            <span id="currentTime">0:00.00</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="timeline-content" id="timelineContent">
+                    <div class="timeline-container" id="timelineContainer">
+                        <div class="time-ruler" id="timeRuler"></div>
+                        <div class="track-container" id="trackContainer"></div>
+                        <div class="time-scrubber" id="timeScrubber"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 右侧属性面板 -->
+        <aside class="right-panel">
+            <!-- 属性面板 -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h3><i class="fas fa-cog"></i> 属性</h3>
+                </div>
+                <div class="panel-content" id="propertiesPanel">
+                    <div class="properties-content" id="propertiesContent">
+                        <div class="no-selection">
+                            <i class="fas fa-hand-pointer"></i>
+                            <p>选择一个对象以编辑属性</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 项目设置面板 -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h3><i class="fas fa-project-diagram"></i> 项目设置</h3>
+                </div>
+                <div class="panel-content">
+                    <div class="form-group">
+                        <label>项目名称</label>
+                        <input type="text" id="projectNameInput" value="my_animation" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>场景尺寸</label>
+                        <div class="size-inputs">
+                            <input type="number" id="sceneWidth" value="800" class="form-control" min="100" max="1920">
+                            <span>×</span>
+                            <input type="number" id="sceneHeight" value="600" class="form-control" min="100" max="1080">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>帧率</label>
+                        <select id="frameRate" class="form-control">
+                            <option value="24">24 FPS</option>
+                            <option value="30" selected>30 FPS</option>
+                            <option value="60">60 FPS</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>动画时长 (秒)</label>
+                        <input type="number" id="animationDuration" value="5" class="form-control" min="1" max="60"
+                            step="0.1">
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- 模态对话框 -->
+    <div id="modalOverlay" class="modal-overlay">
+        <div class="modal" id="newProjectModal">
+            <div class="modal-header">
+                <h3>新建项目</h3>
+                <button class="btn-icon modal-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content">
+                <div class="form-group">
+                    <label>项目名称</label>
+                    <input type="text" id="newProjectName" placeholder="我的动画项目" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>模板</label>
+                    <div class="template-grid">
+                        <div class="template-item active" data-template="blank">
+                            <div class="template-preview">
+                                <i class="fas fa-file-alt"></i>
+                            </div>
+                            <span>空白项目</span>
+                        </div>
+                        <div class="template-item" data-template="basic">
+                            <div class="template-preview">
+                                <i class="fas fa-shapes"></i>
+                            </div>
+                            <span>基础图形</span>
+                        </div>
+                        <div class="template-item" data-template="math">
+                            <div class="template-preview">
+                                <i class="fas fa-calculator"></i>
+                            </div>
+                            <span>数学演示</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary modal-close">取消</button>
+                <button class="btn btn-primary" id="createProject">创建项目</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden file input for project loading -->
+    <input type="file" id="fileInput" accept=".r2gp,.json" style="display: none;">
+
+    <!-- 加载所有JavaScript文件 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/objects.js"></script>
+    <script src="js/scene.js"></script>
+    <script src="js/timeline.js"></script>
+    <script src="js/properties.js"></script>
+    <script src="js/export.js"></script>
+    <script src="js/main.js"></script>
+</body>
+
+</html>
