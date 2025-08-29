@@ -30,6 +30,8 @@ const (
 	TOKEN_ANIMATE // animate
 	TOKEN_RENDER  // render
 	TOKEN_SAVE    // save
+	TOKEN_EXPORT  // export
+	TOKEN_VIDEO   // video
 	TOKEN_WAIT    // wait
 	TOKEN_LOOP    // loop
 	TOKEN_IF      // if
@@ -38,13 +40,17 @@ const (
 	TOKEN_CLEAN   // clean
 
 	// 几何类型
-	TOKEN_CIRCLE   // circle
-	TOKEN_TRIANGLE // triangle
-	TOKEN_RECT     // rectangle
-	TOKEN_LINE     // line
-	TOKEN_ARROW    // arrow
-	TOKEN_POLYGON  // polygon
-	TOKEN_TEXT     // text
+	TOKEN_CIRCLE            // circle
+	TOKEN_TRIANGLE          // triangle
+	TOKEN_RECT              // rectangle
+	TOKEN_LINE              // line
+	TOKEN_ARROW             // arrow
+	TOKEN_POLYGON           // polygon
+	TOKEN_TEXT              // text
+	TOKEN_MARKDOWN          // markdown
+	TOKEN_TEX               // tex
+	TOKEN_MATHTEX           // mathtex (通用数学公式)
+	TOKEN_COORDINATE_SYSTEM // coordinate_system 或 coord_system
 
 	// 动画类型
 	TOKEN_MOVE     // move
@@ -54,12 +60,16 @@ const (
 	TOKEN_FADE_OUT // fadeout
 
 	// 属性
-	TOKEN_COLOR_PROP    // color
-	TOKEN_SIZE_PROP     // size
-	TOKEN_POSITION_PROP // position
-	TOKEN_OPACITY_PROP  // opacity
-	TOKEN_WIDTH_PROP    // width
-	TOKEN_HEIGHT_PROP   // height
+	TOKEN_COLOR_PROP     // color
+	TOKEN_SIZE_PROP      // size
+	TOKEN_POSITION_PROP  // position
+	TOKEN_OPACITY_PROP   // opacity
+	TOKEN_WIDTH_PROP     // width
+	TOKEN_HEIGHT_PROP    // height
+	TOKEN_VERTEX_PROP    // vertex (用于 vertex1, vertex2, vertex3)
+	TOKEN_VERTICES_PROP  // vertices
+	TOKEN_AREA_PROP      // area
+	TOKEN_PERIMETER_PROP // perimeter
 
 	// 运算符
 	TOKEN_ASSIGN   // =
@@ -101,36 +111,50 @@ type Lexer struct {
 
 // keywords 关键字映射表
 var keywords = map[string]TokenType{
-	"scene":     TOKEN_SCENE,
-	"create":    TOKEN_CREATE,
-	"set":       TOKEN_SET,
-	"animate":   TOKEN_ANIMATE,
-	"render":    TOKEN_RENDER,
-	"save":      TOKEN_SAVE,
-	"wait":      TOKEN_WAIT,
-	"loop":      TOKEN_LOOP,
-	"if":        TOKEN_IF,
-	"else":      TOKEN_ELSE,
-	"end":       TOKEN_END,
-	"clean":     TOKEN_CLEAN,
-	"circle":    TOKEN_CIRCLE,
-	"triangle":  TOKEN_TRIANGLE,
-	"rectangle": TOKEN_RECT,
-	"line":      TOKEN_LINE,
-	"arrow":     TOKEN_ARROW,
-	"polygon":   TOKEN_POLYGON,
-	"text":      TOKEN_TEXT,
-	"move":      TOKEN_MOVE,
-	"scale":     TOKEN_SCALE,
-	"rotate":    TOKEN_ROTATE,
-	"fadein":    TOKEN_FADE_IN,
-	"fadeout":   TOKEN_FADE_OUT,
-	"color":     TOKEN_COLOR_PROP,
-	"size":      TOKEN_SIZE_PROP,
-	"position":  TOKEN_POSITION_PROP,
-	"opacity":   TOKEN_OPACITY_PROP,
-	"width":     TOKEN_WIDTH_PROP,
-	"height":    TOKEN_HEIGHT_PROP,
+	"scene":             TOKEN_SCENE,
+	"create":            TOKEN_CREATE,
+	"set":               TOKEN_SET,
+	"animate":           TOKEN_ANIMATE,
+	"render":            TOKEN_RENDER,
+	"save":              TOKEN_SAVE,
+	"export":            TOKEN_EXPORT,
+	"video":             TOKEN_VIDEO,
+	"wait":              TOKEN_WAIT,
+	"loop":              TOKEN_LOOP,
+	"if":                TOKEN_IF,
+	"else":              TOKEN_ELSE,
+	"end":               TOKEN_END,
+	"clean":             TOKEN_CLEAN,
+	"circle":            TOKEN_CIRCLE,
+	"triangle":          TOKEN_TRIANGLE,
+	"rectangle":         TOKEN_RECT,
+	"line":              TOKEN_LINE,
+	"arrow":             TOKEN_ARROW,
+	"polygon":           TOKEN_POLYGON,
+	"text":              TOKEN_TEXT,
+	"markdown":          TOKEN_MARKDOWN,
+	"tex":               TOKEN_TEX,
+	"mathtex":           TOKEN_MATHTEX,
+	"coordinate_system": TOKEN_COORDINATE_SYSTEM,
+	"coord_system":      TOKEN_COORDINATE_SYSTEM,
+	"axes":              TOKEN_COORDINATE_SYSTEM,
+	"move":              TOKEN_MOVE,
+	"scale":             TOKEN_SCALE,
+	"rotate":            TOKEN_ROTATE,
+	"fadein":            TOKEN_FADE_IN,
+	"fadeout":           TOKEN_FADE_OUT,
+	"color":             TOKEN_COLOR_PROP,
+	"size":              TOKEN_SIZE_PROP,
+	"position":          TOKEN_POSITION_PROP,
+	"opacity":           TOKEN_OPACITY_PROP,
+	"width":             TOKEN_WIDTH_PROP,
+	"height":            TOKEN_HEIGHT_PROP,
+	"vertex1":           TOKEN_VERTEX_PROP,
+	"vertex2":           TOKEN_VERTEX_PROP,
+	"vertex3":           TOKEN_VERTEX_PROP,
+	"vertices":          TOKEN_VERTICES_PROP,
+	"area":              TOKEN_AREA_PROP,
+	"perimeter":         TOKEN_PERIMETER_PROP,
 }
 
 // NewLexer 创建新的词法分析器
@@ -416,6 +440,10 @@ func (tt TokenType) String() string {
 		return "RENDER"
 	case TOKEN_SAVE:
 		return "SAVE"
+	case TOKEN_EXPORT:
+		return "EXPORT"
+	case TOKEN_VIDEO:
+		return "VIDEO"
 	case TOKEN_WAIT:
 		return "WAIT"
 	case TOKEN_LOOP:
@@ -440,6 +468,12 @@ func (tt TokenType) String() string {
 		return "POLYGON"
 	case TOKEN_TEXT:
 		return "TEXT"
+	case TOKEN_MARKDOWN:
+		return "MARKDOWN"
+	case TOKEN_TEX:
+		return "TEX"
+	case TOKEN_MATHTEX:
+		return "MATHTEX"
 	case TOKEN_MOVE:
 		return "MOVE"
 	case TOKEN_SCALE:

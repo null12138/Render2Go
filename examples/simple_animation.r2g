@@ -1,0 +1,39 @@
+# 简单动画示例
+scene 800 600 "simple_animation"
+
+# 创建圆形
+create circle c1 1.5
+set c1.color = "#3498DB"
+set c1.position = (-4, 0)
+
+# 创建标题
+create text title "简单动画示例" 24
+set title.position = (0, 3)
+set title.color = "#2C3E50"
+
+# 帧1
+render
+save "frame_0001"
+
+# 帧2
+set c1.position = (-2, 0)
+render
+save "frame_0002"
+
+# 帧3
+set c1.position = (0, 0)
+render
+save "frame_0003"
+
+# 帧4
+set c1.position = (2, 0)
+render
+save "frame_0004"
+
+# 帧5
+set c1.position = (4, 0)
+render
+save "frame_0005"
+
+# 导出视频（需要FFmpeg）
+export "simple_animation.mp4" 30 2

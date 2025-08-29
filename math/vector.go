@@ -22,17 +22,25 @@ func NewCoordinateSystem(width, height int) *CoordinateSystem {
 
 // ToScreen 将逻辑坐标转换为屏幕坐标（左下角为原点）
 func (cs *CoordinateSystem) ToScreen(logical Vector2) Vector2 {
+	// 计算屏幕中心作为坐标原点
+	centerX := float64(cs.Width) / 2.0
+	centerY := float64(cs.Height) / 2.0
+
 	return Vector2{
-		X: logical.X * cs.Scale,
-		Y: float64(cs.Height) - logical.Y*cs.Scale, // Y轴翻转，屏幕坐标Y向下，逻辑坐标Y向上
+		X: centerX + logical.X*cs.Scale,
+		Y: centerY - logical.Y*cs.Scale, // Y轴翻转，逻辑坐标Y向上，屏幕坐标Y向下
 	}
 }
 
-// ToLogical 将屏幕坐标转换为逻辑坐标（左下角为原点）
+// ToLogical 将屏幕坐标转换为逻辑坐标（以屏幕中心为原点）
 func (cs *CoordinateSystem) ToLogical(screen Vector2) Vector2 {
+	// 计算屏幕中心作为坐标原点
+	centerX := float64(cs.Width) / 2.0
+	centerY := float64(cs.Height) / 2.0
+
 	return Vector2{
-		X: screen.X / cs.Scale,
-		Y: (float64(cs.Height) - screen.Y) / cs.Scale, // Y轴翻转
+		X: (screen.X - centerX) / cs.Scale,
+		Y: (centerY - screen.Y) / cs.Scale, // Y轴翻转
 	}
 }
 
@@ -41,11 +49,45 @@ func (cs *CoordinateSystem) SetScale(scale float64) {
 	cs.Scale = scale
 }
 
-// GetBounds 获取逻辑坐标边界（左下角为原点）
+// SetAutoScale 根据期望的逻辑坐标范围自动设置缩放
+func (cs *CoordinateSystem) SetAutoScale(logicalWidth, logicalHeight float64) {
+	// 计算基础缩放
+	scaleX := float64(cs.Width) / logicalWidth
+	scaleY := float64(cs.Height) / logicalHeight
+
+	// 使用较小的缩放值确保内容完全可见，但提高缩放系数
+	baseScale := math.Min(scaleX, scaleY)
+
+	// 根据屏幕大小调整缩放策略
+	if logicalWidth < 10 && logicalHeight < 10 {
+		// 小范围内容，使用更大的缩放
+		cs.Scale = baseScale * 0.6
+	} else if logicalWidth < 20 && logicalHeight < 20 {
+		// 中等范围，使用适中缩放
+		cs.Scale = baseScale * 0.5
+	} else {
+		// 大范围，使用较小缩放但留边距
+		cs.Scale = baseScale * 0.4
+	}
+
+	// 确保最小缩放不会太小
+	if cs.Scale < 5 {
+		cs.Scale = 5
+	}
+}
+
+// SetFixedScale 设置固定缩放，用于标准坐标系
+func (cs *CoordinateSystem) SetFixedScale(pixelsPerUnit float64) {
+	cs.Scale = pixelsPerUnit
+}
+
+// GetBounds 获取逻辑坐标边界（以屏幕中心为原点）
 func (cs *CoordinateSystem) GetBounds() (minX, maxX, minY, maxY float64) {
-	bottomLeft := cs.ToLogical(Vector2{0, float64(cs.Height)})
-	topRight := cs.ToLogical(Vector2{float64(cs.Width), 0})
-	return bottomLeft.X, topRight.X, bottomLeft.Y, topRight.Y
+	// 计算半宽和半高
+	halfWidth := float64(cs.Width) / (2.0 * cs.Scale)
+	halfHeight := float64(cs.Height) / (2.0 * cs.Scale)
+
+	return -halfWidth, halfWidth, -halfHeight, halfHeight
 }
 
 // Vector2 表示2D向量

@@ -5,11 +5,13 @@ import (
 	"image/color"
 	"image/png"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"render2go/animation"
 	"render2go/colors"
 	"render2go/core"
 	"render2go/geometry"
+	"render2go/internal/defaults"
 	gmMath "render2go/math"
 	"render2go/renderer"
 	"render2go/scene"
@@ -67,6 +69,10 @@ func (e *Evaluator) evalStatement(stmt Statement) error {
 		return e.evalRenderStatement(node)
 	case *SaveStatement:
 		return e.evalSaveStatement(node)
+	case *ExportStatement:
+		return e.evalExportStatement(node)
+	case *VideoStatement:
+		return e.evalVideoStatement(node)
 	case *WaitStatement:
 		return e.evalWaitStatement(node)
 	case *LoopStatement:
@@ -92,6 +98,10 @@ func getStatementToken(stmt Statement) *Token {
 	case *RenderStatement:
 		return &s.Token
 	case *SaveStatement:
+		return &s.Token
+	case *ExportStatement:
+		return &s.Token
+	case *VideoStatement:
 		return &s.Token
 	case *WaitStatement:
 		return &s.Token
@@ -187,6 +197,15 @@ func (e *Evaluator) evalCreateStatement(stmt *CreateStatement) error {
 		obj, err = e.createPolygon(stmt)
 	case TOKEN_TEXT:
 		obj, err = e.createText(stmt)
+	// 以下功能已被移除以简化项目
+	// case TOKEN_MARKDOWN:
+	// 	obj, err = e.createMarkdown(stmt)
+	// case TOKEN_TEX:
+	// 	obj, err = e.createTex(stmt)
+	// case TOKEN_MATHTEX:
+	// 	obj, err = e.createMathTex(stmt)
+	case TOKEN_COORDINATE_SYSTEM:
+		obj, err = e.createCoordinateSystem(stmt)
 	default:
 		return e.newError("未知对象类型: %s", stmt.ObjectType.Literal)
 	}
@@ -212,14 +231,63 @@ func (e *Evaluator) createCircle(stmt *CreateStatement) (*geometry.Circle, error
 		return nil, fmt.Errorf("创建圆形需要指定半径参数")
 	}
 
-	radiusVal, err := e.evalExpression(stmt.Parameters[0])
-	if err != nil {
-		return nil, fmt.Errorf("解析圆形半径参数失败: %v", err)
-	}
+	var radius float64
+	var position *gmMath.Vector2
 
-	radius, ok := radiusVal.(float64)
-	if !ok {
-		return nil, fmt.Errorf("圆形半径必须是数字，得到的是: %T", radiusVal)
+	// 检查第一个参数是坐标还是半径
+	if coord, ok := stmt.Parameters[0].(*CoordinateExpression); ok {
+		// 第一个参数是坐标，第二个应该是半径
+		if len(stmt.Parameters) < 2 {
+			return nil, fmt.Errorf("指定位置后还需要指定半径")
+		}
+
+		// 解析坐标
+		x, err := e.evalExpression(coord.X)
+		if err != nil {
+			return nil, err
+		}
+		y, err := e.evalExpression(coord.Y)
+		if err != nil {
+			return nil, err
+		}
+		position = &gmMath.Vector2{X: x.(float64), Y: y.(float64)}
+
+		// 解析半径
+		radiusVal, err := e.evalExpression(stmt.Parameters[1])
+		if err != nil {
+			return nil, fmt.Errorf("解析圆形半径参数失败: %v", err)
+		}
+		radiusFloat, ok := radiusVal.(float64)
+		if !ok {
+			return nil, fmt.Errorf("圆形半径必须是数字，得到的是: %T", radiusVal)
+		}
+		radius = radiusFloat
+	} else {
+		// 第一个参数是半径
+		radiusVal, err := e.evalExpression(stmt.Parameters[0])
+		if err != nil {
+			return nil, fmt.Errorf("解析圆形半径参数失败: %v", err)
+		}
+		radiusFloat, ok := radiusVal.(float64)
+		if !ok {
+			return nil, fmt.Errorf("圆形半径必须是数字，得到的是: %T", radiusVal)
+		}
+		radius = radiusFloat
+
+		// 检查是否有位置参数
+		if len(stmt.Parameters) >= 2 {
+			if coord, ok := stmt.Parameters[1].(*CoordinateExpression); ok {
+				x, err := e.evalExpression(coord.X)
+				if err != nil {
+					return nil, err
+				}
+				y, err := e.evalExpression(coord.Y)
+				if err != nil {
+					return nil, err
+				}
+				position = &gmMath.Vector2{X: x.(float64), Y: y.(float64)}
+			}
+		}
 	}
 
 	if radius <= 0 {
@@ -228,19 +296,9 @@ func (e *Evaluator) createCircle(stmt *CreateStatement) (*geometry.Circle, error
 
 	circle := geometry.NewCircle(radius)
 
-	// 如果有位置参数
-	if len(stmt.Parameters) >= 2 {
-		if coord, ok := stmt.Parameters[1].(*CoordinateExpression); ok {
-			x, err := e.evalExpression(coord.X)
-			if err != nil {
-				return nil, err
-			}
-			y, err := e.evalExpression(coord.Y)
-			if err != nil {
-				return nil, err
-			}
-			circle.MoveTo(gmMath.Vector2{X: x.(float64), Y: y.(float64)})
-		}
+	// 如果有位置，设置位置
+	if position != nil {
+		circle.MoveTo(*position)
 	}
 
 	return circle, nil
@@ -248,20 +306,55 @@ func (e *Evaluator) createCircle(stmt *CreateStatement) (*geometry.Circle, error
 
 // createTriangle 创建三角形
 func (e *Evaluator) createTriangle(stmt *CreateStatement) (*geometry.Triangle, error) {
-	if len(stmt.Parameters) < 1 {
-		return nil, fmt.Errorf("triangle requires size parameter")
+	// 检查参数数量，支持不同的创建方式
+	numParams := len(stmt.Parameters)
+
+	if numParams == 0 {
+		return nil, fmt.Errorf("triangle requires at least one parameter")
 	}
 
-	sizeVal, err := e.evalExpression(stmt.Parameters[0])
+	// 方式1: 通过三个顶点创建 - triangle name (x1,y1) (x2,y2) (x3,y3)
+	if numParams == 3 {
+		var vertices [3]gmMath.Vector2
+		for i, param := range stmt.Parameters {
+			if coord, ok := param.(*CoordinateExpression); ok {
+				x, err := e.evalExpression(coord.X)
+				if err != nil {
+					return nil, fmt.Errorf("invalid vertex %d X coordinate: %v", i+1, err)
+				}
+				y, err := e.evalExpression(coord.Y)
+				if err != nil {
+					return nil, fmt.Errorf("invalid vertex %d Y coordinate: %v", i+1, err)
+				}
+				vertices[i] = gmMath.Vector2{X: x.(float64), Y: y.(float64)}
+			} else {
+				return nil, fmt.Errorf("vertex %d must be a coordinate (x,y)", i+1)
+			}
+		}
+		return geometry.NewTriangle(vertices[0], vertices[1], vertices[2]), nil
+	}
+
+	// 方式2: 通过类型和参数创建
+	// 第一个参数可能是类型字符串或大小数字
+	firstParam := stmt.Parameters[0]
+
+	// 尝试解析第一个参数
+	firstVal, err := e.evalExpression(firstParam)
 	if err != nil {
 		return nil, err
 	}
 
-	size := sizeVal.(float64)
+	// 如果第一个参数是字符串，则表示三角形类型
+	if typeStr, ok := firstVal.(string); ok {
+		return e.createTriangleByType(typeStr, stmt.Parameters[1:])
+	}
+
+	// 否则按传统方式处理：第一个参数是大小
+	size := firstVal.(float64)
 	center := gmMath.Vector2{X: 0, Y: 0} // 默认中心
 
 	// 如果有位置参数
-	if len(stmt.Parameters) >= 2 {
+	if numParams >= 2 {
 		if coord, ok := stmt.Parameters[1].(*CoordinateExpression); ok {
 			x, err := e.evalExpression(coord.X)
 			if err != nil {
@@ -275,8 +368,199 @@ func (e *Evaluator) createTriangle(stmt *CreateStatement) (*geometry.Triangle, e
 		}
 	}
 
-	triangle := geometry.NewIsoscelesRightTriangle(center, size)
+	// 默认创建等腰直角三角形
+	triangle := geometry.NewTriangleByCenter(center, size)
 	return triangle, nil
+}
+
+// createTriangleByType 根据类型创建三角形
+func (e *Evaluator) createTriangleByType(triangleType string, params []Expression) (*geometry.Triangle, error) {
+	switch strings.ToLower(triangleType) {
+	case "equilateral":
+		// 等边三角形: triangle name "equilateral" sideLength (centerX, centerY)
+		return e.createEquilateralTriangle(params)
+	case "right":
+		// 直角三角形: triangle name "right" width height (centerX, centerY)
+		return e.createRightTriangle(params)
+	case "isosceles":
+		// 等腰直角三角形: triangle name "isosceles" size (centerX, centerY)
+		return e.createIsoscelesTriangle(params)
+	default:
+		return nil, fmt.Errorf("unknown triangle type: %s. Supported types: equilateral, right, isosceles", triangleType)
+	}
+}
+
+// createEquilateralTriangle 创建等边三角形
+func (e *Evaluator) createEquilateralTriangle(params []Expression) (*geometry.Triangle, error) {
+	if len(params) < 1 {
+		return nil, fmt.Errorf("equilateral triangle requires side length")
+	}
+
+	sideLengthVal, err := e.evalExpression(params[0])
+	if err != nil {
+		return nil, err
+	}
+	sideLength := sideLengthVal.(float64)
+
+	center := gmMath.Vector2{X: 0, Y: 0}
+	if len(params) >= 2 {
+		if coord, ok := params[1].(*CoordinateExpression); ok {
+			x, err := e.evalExpression(coord.X)
+			if err != nil {
+				return nil, err
+			}
+			y, err := e.evalExpression(coord.Y)
+			if err != nil {
+				return nil, err
+			}
+			center = gmMath.Vector2{X: x.(float64), Y: y.(float64)}
+		}
+	}
+
+	return geometry.NewEquilateralTriangle(center, sideLength), nil
+}
+
+// createRightTriangle 创建直角三角形
+func (e *Evaluator) createRightTriangle(params []Expression) (*geometry.Triangle, error) {
+	if len(params) < 2 {
+		return nil, fmt.Errorf("right triangle requires width and height")
+	}
+
+	widthVal, err := e.evalExpression(params[0])
+	if err != nil {
+		return nil, err
+	}
+	heightVal, err := e.evalExpression(params[1])
+	if err != nil {
+		return nil, err
+	}
+
+	width := widthVal.(float64)
+	height := heightVal.(float64)
+
+	center := gmMath.Vector2{X: 0, Y: 0}
+	if len(params) >= 3 {
+		if coord, ok := params[2].(*CoordinateExpression); ok {
+			x, err := e.evalExpression(coord.X)
+			if err != nil {
+				return nil, err
+			}
+			y, err := e.evalExpression(coord.Y)
+			if err != nil {
+				return nil, err
+			}
+			center = gmMath.Vector2{X: x.(float64), Y: y.(float64)}
+		}
+	}
+
+	return geometry.NewRightTriangle(center, width, height), nil
+}
+
+// createIsoscelesTriangle 创建等腰直角三角形
+func (e *Evaluator) createIsoscelesTriangle(params []Expression) (*geometry.Triangle, error) {
+	if len(params) < 1 {
+		return nil, fmt.Errorf("isosceles triangle requires size")
+	}
+
+	sizeVal, err := e.evalExpression(params[0])
+	if err != nil {
+		return nil, err
+	}
+	size := sizeVal.(float64)
+
+	center := gmMath.Vector2{X: 0, Y: 0}
+	if len(params) >= 2 {
+		if coord, ok := params[1].(*CoordinateExpression); ok {
+			x, err := e.evalExpression(coord.X)
+			if err != nil {
+				return nil, err
+			}
+			y, err := e.evalExpression(coord.Y)
+			if err != nil {
+				return nil, err
+			}
+			center = gmMath.Vector2{X: x.(float64), Y: y.(float64)}
+		}
+	}
+
+	return geometry.NewTriangleByCenter(center, size), nil
+}
+
+// createCoordinateSystem 创建坐标系
+func (e *Evaluator) createCoordinateSystem(stmt *CreateStatement) (*geometry.CoordinateSystem, error) {
+	numParams := len(stmt.Parameters)
+
+	// 默认创建适应视口的坐标系
+	if numParams == 0 {
+		// 从场景中获取视口大小
+		if e.scene != nil {
+			width := float64(e.scene.GetWidth())
+			height := float64(e.scene.GetHeight())
+			return geometry.NewViewportCoordinateSystem(width, height), nil
+		}
+		return geometry.NewStandardCoordinateSystem(), nil
+	}
+
+	// 如果第一个参数是字符串，可能是预定义类型
+	if numParams == 1 {
+		if firstVal, err := e.evalExpression(stmt.Parameters[0]); err == nil {
+			if typeStr, ok := firstVal.(string); ok {
+				switch strings.ToLower(typeStr) {
+				case "standard":
+					return geometry.NewStandardCoordinateSystem(), nil
+				case "small":
+					return geometry.NewCoordinateSystem([2]float64{-5, 5}, [2]float64{-5, 5}, 1.0), nil
+				case "large":
+					return geometry.NewCoordinateSystem([2]float64{-20, 20}, [2]float64{-20, 20}, 2.0), nil
+				case "viewport", "auto":
+					// 自动适应视口
+					if e.scene != nil {
+						width := float64(e.scene.GetWidth())
+						height := float64(e.scene.GetHeight())
+						return geometry.NewViewportCoordinateSystem(width, height), nil
+					}
+					return geometry.NewStandardCoordinateSystem(), nil
+				default:
+					return nil, fmt.Errorf("unknown coordinate system type: %s. Supported: standard, small, large, viewport, auto", typeStr)
+				}
+			}
+		}
+	}
+
+	// 自定义坐标系: coord_system name xMin xMax yMin yMax spacing
+	if numParams >= 5 {
+		xMinVal, err := e.evalExpression(stmt.Parameters[0])
+		if err != nil {
+			return nil, fmt.Errorf("invalid xMin: %v", err)
+		}
+		xMaxVal, err := e.evalExpression(stmt.Parameters[1])
+		if err != nil {
+			return nil, fmt.Errorf("invalid xMax: %v", err)
+		}
+		yMinVal, err := e.evalExpression(stmt.Parameters[2])
+		if err != nil {
+			return nil, fmt.Errorf("invalid yMin: %v", err)
+		}
+		yMaxVal, err := e.evalExpression(stmt.Parameters[3])
+		if err != nil {
+			return nil, fmt.Errorf("invalid yMax: %v", err)
+		}
+		spacingVal, err := e.evalExpression(stmt.Parameters[4])
+		if err != nil {
+			return nil, fmt.Errorf("invalid spacing: %v", err)
+		}
+
+		xMin := xMinVal.(float64)
+		xMax := xMaxVal.(float64)
+		yMin := yMinVal.(float64)
+		yMax := yMaxVal.(float64)
+		spacing := spacingVal.(float64)
+
+		return geometry.NewCoordinateSystem([2]float64{xMin, xMax}, [2]float64{yMin, yMax}, spacing), nil
+	}
+
+	// 如果参数数量不匹配，返回错误
+	return nil, fmt.Errorf("coordinate system requires 0 (standard), 1 (type), or 5+ (custom) parameters, got %d", numParams)
 }
 
 // createRectangle 创建矩形
@@ -426,9 +710,9 @@ func (e *Evaluator) createPolygon(stmt *CreateStatement) (*geometry.Polygon, err
 
 // createText 创建文本对象
 func (e *Evaluator) createText(stmt *CreateStatement) (*geometry.Text, error) {
-	// 检查参数数量：至少需要文本内容、字体大小和位置
-	if len(stmt.Parameters) < 3 {
-		return nil, fmt.Errorf("文本对象需要3个参数：文本内容、字体大小和位置坐标")
+	// 检查参数数量：至少需要文本内容和字体大小
+	if len(stmt.Parameters) < 2 {
+		return nil, fmt.Errorf("文本对象需要至少2个参数：文本内容和字体大小")
 	}
 
 	// 解析文本内容
@@ -446,10 +730,44 @@ func (e *Evaluator) createText(stmt *CreateStatement) (*geometry.Text, error) {
 	if err != nil {
 		return nil, fmt.Errorf("解析字体大小失败: %v", err)
 	}
-	size, ok := sizeVal.(float64)
-	if !ok {
-		return nil, fmt.Errorf("字体大小必须是数字")
+
+	var size float64
+	switch s := sizeVal.(type) {
+	case float64:
+		size = s
+	case string:
+		// 支持字体大小名称
+		sizeName := strings.ToLower(s)
+		sizeFound := false
+
+		switch sizeName {
+		case "tiny":
+			size = defaults.FontSizes.Tiny
+			sizeFound = true
+		case "small":
+			size = defaults.FontSizes.Small
+			sizeFound = true
+		case "normal":
+			size = defaults.FontSizes.Normal
+			sizeFound = true
+		case "large":
+			size = defaults.FontSizes.Large
+			sizeFound = true
+		case "huge":
+			size = defaults.FontSizes.Huge
+			sizeFound = true
+		case "title":
+			size = defaults.FontSizes.Title
+			sizeFound = true
+		}
+
+		if !sizeFound {
+			return nil, fmt.Errorf("未知字体大小名称: %s", s)
+		}
+	default:
+		return nil, fmt.Errorf("字体大小必须是数字或字体大小名称")
 	}
+
 	if size <= 0 {
 		return nil, fmt.Errorf("字体大小必须大于0")
 	}
@@ -457,27 +775,19 @@ func (e *Evaluator) createText(stmt *CreateStatement) (*geometry.Text, error) {
 	// 创建文本对象
 	textObj := geometry.NewText(text, size)
 
-	// 解析位置坐标
-	if coord, ok := stmt.Parameters[2].(*CoordinateExpression); ok {
-		x, err := e.evalExpression(coord.X)
-		if err != nil {
-			return nil, fmt.Errorf("解析X坐标失败: %v", err)
+	// 如果提供了位置坐标（第3个参数），则设置位置
+	if len(stmt.Parameters) >= 3 {
+		if coord, ok := stmt.Parameters[2].(*CoordinateExpression); ok {
+			x, err := e.evalExpression(coord.X)
+			if err != nil {
+				return nil, fmt.Errorf("解析X坐标失败: %v", err)
+			}
+			y, err := e.evalExpression(coord.Y)
+			if err != nil {
+				return nil, fmt.Errorf("解析Y坐标失败: %v", err)
+			}
+			textObj.MoveTo(gmMath.Vector2{X: x.(float64), Y: y.(float64)})
 		}
-		y, err := e.evalExpression(coord.Y)
-		if err != nil {
-			return nil, fmt.Errorf("解析Y坐标失败: %v", err)
-		}
-
-		xPos, ok1 := x.(float64)
-		yPos, ok2 := y.(float64)
-		if !ok1 || !ok2 {
-			return nil, fmt.Errorf("坐标必须是数字")
-		}
-
-		// 设置文本位置
-		textObj.MoveTo(gmMath.Vector2{X: xPos, Y: yPos})
-	} else {
-		return nil, fmt.Errorf("第三个参数必须是坐标 (x, y)")
 	}
 
 	return textObj, nil
@@ -509,6 +819,10 @@ func (e *Evaluator) evalSetStatement(stmt *SetStatement) error {
 		return e.setWidth(obj, value)
 	case TOKEN_HEIGHT_PROP:
 		return e.setHeight(obj, value)
+	case TOKEN_VERTEX_PROP:
+		return e.setVertex(obj, stmt.Property.Literal, value)
+	case TOKEN_VERTICES_PROP:
+		return e.setVertices(obj, value)
 	default:
 		return fmt.Errorf("unknown property: %s", stmt.Property.Literal)
 	}
@@ -523,22 +837,101 @@ func (e *Evaluator) setColor(obj interface{}, value interface{}) error {
 		if strings.HasPrefix(v, "#") {
 			c = colors.HexToRGBA(v)
 		} else {
-			// 预定义颜色名称
-			switch strings.ToLower(v) {
-			case "deepblue":
-				c = colors.DeepBlue
-			case "midblue":
-				c = colors.MidBlue
-			case "purpleblue":
-				c = colors.PurpleBlue
-			case "cyanblue":
-				c = colors.CyanBlue
-			case "darkcolor":
-				c = colors.DarkColor
-			case "lightpurple":
-				c = colors.LightPurple
-			default:
-				return e.newError("未知颜色名: %s", v)
+			// 首先检查defaults中的颜色名称
+			colorFound := false
+			colorName := strings.ToLower(v)
+
+			// 直接匹配颜色名称到defaults.Colors字段
+			switch colorName {
+			case "black":
+				c = defaults.Colors.Black
+				colorFound = true
+			case "white":
+				c = defaults.Colors.White
+				colorFound = true
+			case "red":
+				c = defaults.Colors.Red
+				colorFound = true
+			case "green":
+				c = defaults.Colors.Green
+				colorFound = true
+			case "blue":
+				c = defaults.Colors.Blue
+				colorFound = true
+			case "yellow":
+				c = defaults.Colors.Yellow
+				colorFound = true
+			case "cyan":
+				c = defaults.Colors.Cyan
+				colorFound = true
+			case "magenta":
+				c = defaults.Colors.Magenta
+				colorFound = true
+			case "primary":
+				c = defaults.Colors.Primary
+				colorFound = true
+			case "secondary":
+				c = defaults.Colors.Secondary
+				colorFound = true
+			case "accent":
+				c = defaults.Colors.Accent
+				colorFound = true
+			case "background":
+				c = defaults.Colors.Background
+				colorFound = true
+			case "surface":
+				c = defaults.Colors.Surface
+				colorFound = true
+			case "error":
+				c = defaults.Colors.Error
+				colorFound = true
+			case "success":
+				c = defaults.Colors.Success
+				colorFound = true
+			case "warning":
+				c = defaults.Colors.Warning
+				colorFound = true
+			case "info":
+				c = defaults.Colors.Info
+				colorFound = true
+			case "muted":
+				c = defaults.Colors.Muted
+				colorFound = true
+			case "mathred":
+				c = defaults.Colors.MathRed
+				colorFound = true
+			case "mathblue":
+				c = defaults.Colors.MathBlue
+				colorFound = true
+			case "mathgreen":
+				c = defaults.Colors.MathGreen
+				colorFound = true
+			case "mathorange":
+				c = defaults.Colors.MathOrange
+				colorFound = true
+			case "mathpurple":
+				c = defaults.Colors.MathPurple
+				colorFound = true
+			}
+
+			if !colorFound {
+				// 向后兼容旧的预定义颜色名称
+				switch strings.ToLower(v) {
+				case "deepblue":
+					c = colors.DeepBlue
+				case "midblue":
+					c = colors.MidBlue
+				case "purpleblue":
+					c = colors.PurpleBlue
+				case "cyanblue":
+					c = colors.CyanBlue
+				case "darkcolor":
+					c = colors.DarkColor
+				case "lightpurple":
+					c = colors.LightPurple
+				default:
+					return e.newError("未知颜色名: %s", v)
+				}
 			}
 		}
 	default:
@@ -570,7 +963,7 @@ func (e *Evaluator) setPosition(obj interface{}, value interface{}) error {
 	}
 
 	if mobject, ok := obj.(interface {
-		MoveTo(gmMath.Vector2) interface{}
+		MoveTo(gmMath.Vector2) core.Mobject
 	}); ok {
 		mobject.MoveTo(gmMath.Vector2{X: x.(float64), Y: y.(float64)})
 		return nil
@@ -617,6 +1010,90 @@ func (e *Evaluator) setWidth(obj interface{}, value interface{}) error {
 func (e *Evaluator) setHeight(obj interface{}, value interface{}) error {
 	// 实现高度设置
 	return fmt.Errorf("height property not yet implemented")
+}
+
+// setVertex 设置三角形的单个顶点
+func (e *Evaluator) setVertex(obj interface{}, property string, value interface{}) error {
+	triangle, ok := obj.(*geometry.Triangle)
+	if !ok {
+		return e.newError("vertex properties are only supported for triangle objects")
+	}
+
+	// 确定顶点索引
+	var vertexIndex int
+	switch property {
+	case "vertex1":
+		vertexIndex = 0
+	case "vertex2":
+		vertexIndex = 1
+	case "vertex3":
+		vertexIndex = 2
+	default:
+		return e.newError("unknown vertex property: %s. Use vertex1, vertex2, or vertex3", property)
+	}
+
+	// 解析坐标值
+	coord, ok := value.(*CoordinateExpression)
+	if !ok {
+		return e.newError("vertex must be a coordinate (x, y), got %T", value)
+	}
+
+	x, err := e.evalExpression(coord.X)
+	if err != nil {
+		return e.newError("invalid vertex X coordinate: %v", err)
+	}
+	y, err := e.evalExpression(coord.Y)
+	if err != nil {
+		return e.newError("invalid vertex Y coordinate: %v", err)
+	}
+
+	// 设置顶点
+	newVertex := gmMath.Vector2{X: x.(float64), Y: y.(float64)}
+	triangle.SetVertex(vertexIndex, newVertex)
+
+	return nil
+}
+
+// setVertices 设置三角形的所有顶点
+func (e *Evaluator) setVertices(obj interface{}, value interface{}) error {
+	triangle, ok := obj.(*geometry.Triangle)
+	if !ok {
+		return e.newError("vertices property is only supported for triangle objects")
+	}
+
+	// 解析顶点数组
+	array, ok := value.(*ArrayExpression)
+	if !ok {
+		return e.newError("vertices must be an array of coordinates [(x1,y1), (x2,y2), (x3,y3)], got %T", value)
+	}
+
+	if len(array.Elements) != 3 {
+		return e.newError("triangle vertices array must contain exactly 3 coordinates, got %d", len(array.Elements))
+	}
+
+	var vertices [3]gmMath.Vector2
+	for i, element := range array.Elements {
+		coord, ok := element.(*CoordinateExpression)
+		if !ok {
+			return e.newError("vertex %d must be a coordinate (x,y), got %T", i+1, element)
+		}
+
+		x, err := e.evalExpression(coord.X)
+		if err != nil {
+			return e.newError("invalid vertex %d X coordinate: %v", i+1, err)
+		}
+		y, err := e.evalExpression(coord.Y)
+		if err != nil {
+			return e.newError("invalid vertex %d Y coordinate: %v", i+1, err)
+		}
+
+		vertices[i] = gmMath.Vector2{X: x.(float64), Y: y.(float64)}
+	}
+
+	// 设置所有顶点
+	triangle.SetVertices(vertices[0], vertices[1], vertices[2])
+
+	return nil
 }
 
 // evalAnimateStatement 执行动画语句
@@ -822,22 +1299,89 @@ func (e *Evaluator) saveImageFile(fullPath string) error {
 		return fmt.Errorf("创建目录失败 '%s': %v", dir, err)
 	}
 
-	// 获取图像
-	img := e.scene.GetRenderer().GetContext().Image()
+	// 获取图像 - 修复接口类型断言
+	rendererInterface := e.scene.GetRenderer()
+	if canvasRenderer, ok := rendererInterface.(*renderer.CanvasRenderer); ok {
+		img := canvasRenderer.GetContext().Image()
 
-	// 创建文件
-	file, err := os.Create(fullPath)
-	if err != nil {
-		return fmt.Errorf("创建输出文件失败 '%s': %v", fullPath, err)
-	}
-	defer file.Close()
+		// 创建文件
+		file, err := os.Create(fullPath)
+		if err != nil {
+			return fmt.Errorf("创建输出文件失败 '%s': %v", fullPath, err)
+		}
+		defer file.Close()
 
-	// 编码为PNG
-	if err := png.Encode(file, img); err != nil {
-		return fmt.Errorf("PNG编码失败: %v", err)
+		// 编码为PNG
+		if err := png.Encode(file, img); err != nil {
+			return fmt.Errorf("PNG编码失败: %v", err)
+		}
+	} else {
+		return fmt.Errorf("不支持的渲染器类型")
 	}
 
 	return nil
+}
+
+// evalExportStatement 执行导出语句 - 导出序列帧动画
+func (e *Evaluator) evalExportStatement(stmt *ExportStatement) error {
+	if e.scene == nil {
+		return fmt.Errorf("no scene defined")
+	}
+
+	filename, err := e.evalExpression(stmt.Filename)
+	if err != nil {
+		return err
+	}
+
+	// 默认参数
+	fps := 30.0
+	duration := 5.0
+
+	// 解析可选参数
+	if stmt.FPS != nil {
+		fpsVal, err := e.evalExpression(stmt.FPS)
+		if err != nil {
+			return err
+		}
+		fps = fpsVal.(float64)
+	}
+
+	if stmt.Duration != nil {
+		durationVal, err := e.evalExpression(stmt.Duration)
+		if err != nil {
+			return err
+		}
+		duration = durationVal.(float64)
+	}
+
+	return e.renderAnimationSequence(filename.(string), float64(fps), duration)
+}
+
+// evalVideoStatement 执行视频语句 - 直接生成视频文件
+func (e *Evaluator) evalVideoStatement(stmt *VideoStatement) error {
+	if e.scene == nil {
+		return fmt.Errorf("no scene defined")
+	}
+
+	filename, err := e.evalExpression(stmt.Filename)
+	if err != nil {
+		return err
+	}
+
+	fpsVal, err := e.evalExpression(stmt.FPS)
+	if err != nil {
+		return err
+	}
+
+	durationVal, err := e.evalExpression(stmt.Duration)
+	if err != nil {
+		return err
+	}
+
+	fps := int(fpsVal.(float64))
+	duration := durationVal.(float64)
+
+	return e.renderVideoDirectly(filename.(string), float64(fps), duration)
 }
 
 // evalWaitStatement 执行等待语句
@@ -980,4 +1524,108 @@ func (e *Evaluator) GetScene() *scene.Scene {
 // GetObjects 获取所有对象
 func (e *Evaluator) GetObjects() map[string]interface{} {
 	return e.objects
+}
+
+/*
+// createMarkdown 创建Markdown对象
+func (e *Evaluator) createMarkdown(stmt *CreateStatement) (interface{}, error) {
+	// 该功能已被移除以简化项目
+	return nil, fmt.Errorf("markdown功能已被移除")
+}
+
+// createTex 创建TeX对象
+func (e *Evaluator) createTex(stmt *CreateStatement) (interface{}, error) {
+	// 该功能已被移除以简化项目
+	return nil, fmt.Errorf("TeX功能已被移除")
+}
+
+// createTexWithLatex 创建TeX对象（使用latex库）
+func (e *Evaluator) createTexWithLatex(stmt *CreateStatement) (interface{}, error) {
+	// 该功能已被移除以简化项目
+	return nil, fmt.Errorf("TeX功能已被移除")
+}
+
+// createMathTex 创建数学TeX对象
+func (e *Evaluator) createMathTex(stmt *CreateStatement) (interface{}, error) {
+	// 该功能已被移除以简化项目
+	return nil, fmt.Errorf("数学TeX功能已被移除")
+}
+*/
+
+// renderAnimationSequence 渲染动画序列为帧图片
+func (e *Evaluator) renderAnimationSequence(filename string, fps, duration float64) error {
+	if e.scene == nil {
+		return fmt.Errorf("没有活动的场景")
+	}
+
+	// 获取渲染器
+	rendererInterface := e.scene.GetRenderer()
+	if rendererInterface == nil {
+		return fmt.Errorf("没有设置渲染器")
+	}
+
+	canvasRenderer, ok := rendererInterface.(*renderer.CanvasRenderer)
+	if !ok {
+		return fmt.Errorf("渲染器类型不支持")
+	}
+
+	// 计算总帧数
+	totalFrames := int(fps * duration)
+	frameDir := fmt.Sprintf("%s_frames", strings.TrimSuffix(filename, ".mp4"))
+
+	// 创建帧目录
+	err := os.MkdirAll(frameDir, 0755)
+	if err != nil {
+		return fmt.Errorf("创建帧目录失败: %v", err)
+	}
+
+	// 准备动画时间轴
+	dt := 1.0 / fps
+
+	// 渲染每一帧
+	for frame := 0; frame < totalFrames; frame++ {
+		currentTime := float64(frame) * dt
+
+		// 清空画布
+		canvasRenderer.Clear(1.0, 1.0, 1.0)
+
+		// 更新并渲染所有对象
+		for _, obj := range e.scene.GetObjects() {
+			// 如果对象支持动画更新
+			if mobject, ok := obj.(interface{ UpdateAnimation(float64) }); ok {
+				mobject.UpdateAnimation(currentTime)
+			}
+			// 渲染对象
+			canvasRenderer.Render(obj)
+		}
+
+		// 保存当前帧
+		framePath := fmt.Sprintf("%s/frame_%04d.png", frameDir, frame)
+		err := canvasRenderer.SaveFrame(framePath)
+		if err != nil {
+			return fmt.Errorf("渲染第%d帧失败: %v", frame, err)
+		}
+	}
+
+	// 使用FFmpeg合成视频
+	ffmpegCmd := fmt.Sprintf("ffmpeg -r %.2f -i %s/frame_%%04d.png -c:v libx264 -pix_fmt yuv420p %s", fps, frameDir, filename)
+
+	cmd := exec.Command("cmd", "/C", ffmpegCmd)
+	_, err = cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("⚠️ FFmpeg未安装或执行失败，帧图片已保存到: %s\n", frameDir)
+		fmt.Printf("您可以手动使用FFmpeg合成视频: %s\n", ffmpegCmd)
+		return nil // 不返回错误，只是警告
+	}
+
+	// 清理临时帧文件
+	os.RemoveAll(frameDir)
+
+	fmt.Printf("动画视频已生成: %s\n", filename)
+	return nil
+} // renderVideoDirectly 直接渲染视频文件
+func (e *Evaluator) renderVideoDirectly(filename string, fps, duration float64) error {
+	// 对于直接视频渲染，我们也使用帧序列方法
+	// 这确保了与现有渲染系统的兼容性
+	return e.renderAnimationSequence(filename, fps, duration)
 }

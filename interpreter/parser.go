@@ -182,6 +182,32 @@ func (ss *SaveStatement) String() string {
 	return fmt.Sprintf("save %s", ss.Filename.String())
 }
 
+// 导出视频语句
+type ExportStatement struct {
+	Token    Token
+	Filename Expression
+	FPS      Expression // 帧率，可选
+	Duration Expression // 时长，可选
+}
+
+func (es *ExportStatement) statementNode() {}
+func (es *ExportStatement) String() string {
+	return fmt.Sprintf("export %s", es.Filename.String())
+}
+
+// 视频渲染语句
+type VideoStatement struct {
+	Token    Token
+	Filename Expression
+	FPS      Expression // 帧率
+	Duration Expression // 时长
+}
+
+func (vs *VideoStatement) statementNode() {}
+func (vs *VideoStatement) String() string {
+	return fmt.Sprintf("video %s", vs.Filename.String())
+}
+
 // 等待语句
 type WaitStatement struct {
 	Token    Token
@@ -294,6 +320,10 @@ func (p *Parser) parseStatement() Statement {
 		return p.parseRenderStatement()
 	case TOKEN_SAVE:
 		return p.parseSaveStatement()
+	case TOKEN_EXPORT:
+		return p.parseExportStatement()
+	case TOKEN_VIDEO:
+		return p.parseVideoStatement()
 	case TOKEN_WAIT:
 		return p.parseWaitStatement()
 	case TOKEN_LOOP:
@@ -348,7 +378,8 @@ func (p *Parser) parseCreateStatement() *CreateStatement {
 	// 先解析括号外的参数
 	for !p.peekTokenIs(TOKEN_LPAREN) && !p.peekTokenIs(TOKEN_EOF) && !p.peekTokenIs(TOKEN_NEWLINE) &&
 		!p.peekTokenIs(TOKEN_CREATE) && !p.peekTokenIs(TOKEN_SET) && !p.peekTokenIs(TOKEN_ANIMATE) &&
-		!p.peekTokenIs(TOKEN_RENDER) && !p.peekTokenIs(TOKEN_SAVE) && !p.peekTokenIs(TOKEN_WAIT) && !p.peekTokenIs(TOKEN_LOOP) {
+		!p.peekTokenIs(TOKEN_RENDER) && !p.peekTokenIs(TOKEN_SAVE) && !p.peekTokenIs(TOKEN_EXPORT) &&
+		!p.peekTokenIs(TOKEN_VIDEO) && !p.peekTokenIs(TOKEN_WAIT) && !p.peekTokenIs(TOKEN_LOOP) {
 		p.nextToken()
 		expr := p.parseExpression()
 		if expr != nil {
@@ -435,6 +466,53 @@ func (p *Parser) parseSaveStatement() *SaveStatement {
 		return nil
 	}
 	stmt.Filename = p.parseStringLiteral()
+
+	return stmt
+}
+
+// parseExportStatement 解析导出语句
+func (p *Parser) parseExportStatement() *ExportStatement {
+	stmt := &ExportStatement{Token: p.curToken}
+
+	if !p.expectPeek(TOKEN_STRING) {
+		return nil
+	}
+	stmt.Filename = p.parseStringLiteral()
+
+	// 可选的FPS和Duration参数
+	if p.peekTokenIs(TOKEN_NUMBER) {
+		p.nextToken()
+		stmt.FPS = p.parseNumberLiteral()
+
+		if p.peekTokenIs(TOKEN_NUMBER) {
+			p.nextToken()
+			stmt.Duration = p.parseNumberLiteral()
+		}
+	}
+
+	return stmt
+}
+
+// parseVideoStatement 解析视频语句
+func (p *Parser) parseVideoStatement() *VideoStatement {
+	stmt := &VideoStatement{Token: p.curToken}
+
+	if !p.expectPeek(TOKEN_STRING) {
+		return nil
+	}
+	stmt.Filename = p.parseStringLiteral()
+
+	// 必须的FPS参数
+	if !p.expectPeek(TOKEN_NUMBER) {
+		return nil
+	}
+	stmt.FPS = p.parseNumberLiteral()
+
+	// 必须的Duration参数
+	if !p.expectPeek(TOKEN_NUMBER) {
+		return nil
+	}
+	stmt.Duration = p.parseNumberLiteral()
 
 	return stmt
 }
@@ -617,7 +695,7 @@ func (p *Parser) expectPeek(t TokenType) bool {
 }
 
 func (p *Parser) expectPeekObjectType() bool {
-	types := []TokenType{TOKEN_CIRCLE, TOKEN_TRIANGLE, TOKEN_RECT, TOKEN_LINE, TOKEN_ARROW, TOKEN_POLYGON, TOKEN_TEXT}
+	types := []TokenType{TOKEN_CIRCLE, TOKEN_TRIANGLE, TOKEN_RECT, TOKEN_LINE, TOKEN_ARROW, TOKEN_POLYGON, TOKEN_TEXT, TOKEN_MARKDOWN, TOKEN_TEX, TOKEN_MATHTEX, TOKEN_COORDINATE_SYSTEM}
 	for _, t := range types {
 		if p.peekTokenIs(t) {
 			p.nextToken()
@@ -625,21 +703,21 @@ func (p *Parser) expectPeekObjectType() bool {
 		}
 	}
 
-	typeNames := []string{"circle", "triangle", "rectangle", "line", "arrow", "polygon", "text"}
+	typeNames := []string{"circle", "triangle", "rectangle", "line", "arrow", "polygon", "text", "markdown", "tex", "mathtex", "coordinate_system"}
 	p.errors = append(p.errors, fmt.Sprintf("行 %d: 需要对象类型（%s），但得到了 '%s'",
 		p.peekToken.Line, strings.Join(typeNames, ", "), p.peekToken.Literal))
 	return false
 }
 
 func (p *Parser) expectPeekProperty() bool {
-	properties := []TokenType{TOKEN_COLOR_PROP, TOKEN_SIZE_PROP, TOKEN_POSITION_PROP, TOKEN_OPACITY_PROP, TOKEN_WIDTH_PROP, TOKEN_HEIGHT_PROP}
+	properties := []TokenType{TOKEN_COLOR_PROP, TOKEN_SIZE_PROP, TOKEN_POSITION_PROP, TOKEN_OPACITY_PROP, TOKEN_WIDTH_PROP, TOKEN_HEIGHT_PROP, TOKEN_VERTEX_PROP, TOKEN_VERTICES_PROP}
 	for _, t := range properties {
 		if p.peekTokenIs(t) {
 			p.nextToken()
 			return true
 		}
 	}
-	propNames := []string{"color", "size", "position", "opacity", "width", "height"}
+	propNames := []string{"color", "size", "position", "opacity", "width", "height", "vertex1", "vertex2", "vertex3", "vertices"}
 	p.errors = append(p.errors, fmt.Sprintf("行 %d: 需要属性名（%s），但得到了 '%s'",
 		p.peekToken.Line, strings.Join(propNames, ", "), p.peekToken.Literal))
 	return false
