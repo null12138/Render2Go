@@ -3,11 +3,9 @@ package renderer
 import (
 	"fmt"
 	"image"
-	"image/color"
 	"image/png"
 	"os"
 	"path/filepath"
-	"render2go/core"
 	"render2go/scene"
 	"time"
 )
@@ -24,6 +22,11 @@ type FrameSequenceRenderer struct {
 
 // NewFrameSequenceRenderer 创建新的序列帧渲染器
 func NewFrameSequenceRenderer(outputDir string, frameRate int, duration float64, width, height int) *FrameSequenceRenderer {
+	// 使用默认60fps以获得更流畅的动画效果
+	if frameRate <= 0 {
+		frameRate = 60
+	}
+
 	totalFrames := int(duration * float64(frameRate))
 
 	// 创建输出目录
@@ -87,46 +90,24 @@ func (fsr *FrameSequenceRenderer) RenderSequence(scn *scene.Scene) error {
 
 // renderSceneToImage 将场景渲染为图像
 func (fsr *FrameSequenceRenderer) renderSceneToImage(scn *scene.Scene) image.Image {
-	// 创建图像
-	img := image.NewRGBA(image.Rect(0, 0, fsr.width, fsr.height))
+	// 创建临时渲染器
+	tempRenderer := NewCanvasRenderer(fsr.width, fsr.height)
 
 	// 设置背景色
 	backgroundColor := scn.GetBackgroundColor()
-	bgColor := color.RGBA{
-		R: uint8(backgroundColor[0] * 255),
-		G: uint8(backgroundColor[1] * 255),
-		B: uint8(backgroundColor[2] * 255),
-		A: 255,
-	}
-	for y := 0; y < fsr.height; y++ {
-		for x := 0; x < fsr.width; x++ {
-			img.Set(x, y, bgColor)
-		}
-	}
+	tempRenderer.Clear(backgroundColor[0], backgroundColor[1], backgroundColor[2])
+
+	// 设置坐标系统
+	objects := scn.GetObjects()
+	tempRenderer.SetupCoordinateSystem(objects)
 
 	// 渲染所有对象
-	for _, obj := range scn.GetObjects() {
-		fsr.renderObject(img, obj)
+	for _, obj := range objects {
+		tempRenderer.Render(obj)
 	}
 
-	return img
-}
-
-// renderObject 渲染单个对象
-func (fsr *FrameSequenceRenderer) renderObject(img *image.RGBA, obj core.Mobject) {
-	// 这里应该根据对象类型进行具体的渲染
-	// 暂时用简单的点渲染作为占位符
-	points := obj.GetPoints()
-	objColor := obj.GetColor()
-
-	for _, point := range points {
-		x := int(point.X + float64(fsr.width)/2) // 将坐标转换为屏幕坐标
-		y := int(point.Y + float64(fsr.height)/2)
-
-		if x >= 0 && x < fsr.width && y >= 0 && y < fsr.height {
-			img.Set(x, y, objColor)
-		}
-	}
+	// 获取渲染结果作为图像
+	return tempRenderer.GetImage()
 }
 
 // saveImage 保存图像到文件

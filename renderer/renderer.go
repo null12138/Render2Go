@@ -47,80 +47,9 @@ func (r *CanvasRenderer) GetCoordinateSystem() *gmMath.CoordinateSystem {
 
 // SetupCoordinateSystem 根据场景内容自动设置坐标系
 func (r *CanvasRenderer) SetupCoordinateSystem(objects []core.Mobject) {
-	if len(objects) == 0 {
-		// 默认设置标准缩放：每单位40像素
-		r.coordinateSystem.SetFixedScale(40)
-		return
-	}
-
-	// 分析对象类型，为文本对象设置特殊处理
-	hasTextOnly := true
-	realMinX, realMaxX := math.Inf(1), math.Inf(-1)
-	realMinY, realMaxY := math.Inf(1), math.Inf(-1)
-
-	for _, obj := range objects {
-		switch obj.(type) {
-		case *geometry.Text:
-			// 文本对象使用其位置而不是边界框
-			center := obj.GetCenter()
-			if center.X < realMinX {
-				realMinX = center.X
-			}
-			if center.X > realMaxX {
-				realMaxX = center.X
-			}
-			if center.Y < realMinY {
-				realMinY = center.Y
-			}
-			if center.Y > realMaxY {
-				realMaxY = center.Y
-			}
-		case *geometry.CoordinateSystem:
-			// 跳过坐标系对象，避免影响布局
-			continue
-		default:
-			hasTextOnly = false
-			// 几何对象使用实际边界
-			points := obj.GetPoints()
-			for _, point := range points {
-				if point.X < realMinX {
-					realMinX = point.X
-				}
-				if point.X > realMaxX {
-					realMaxX = point.X
-				}
-				if point.Y < realMinY {
-					realMinY = point.Y
-				}
-				if point.Y > realMaxY {
-					realMaxY = point.Y
-				}
-			}
-		}
-	}
-
-	// 如果没有有效边界，使用默认缩放
-	if realMinX == math.Inf(1) || realMaxX == math.Inf(-1) {
-		r.coordinateSystem.SetFixedScale(40)
-		return
-	}
-
-	// 计算实际内容范围
-	rangeX := realMaxX - realMinX
-	rangeY := realMaxY - realMinY
-
-	// 如果只有文本对象，使用更大的默认范围
-	if hasTextOnly {
-		rangeX = math.Max(rangeX, 8) // 最小8单位宽度
-		rangeY = math.Max(rangeY, 6) // 最小6单位高度
-	}
-
-	// 添加合理边距
-	expandedRangeX := rangeX + 4 // 固定4单位边距
-	expandedRangeY := rangeY + 3 // 固定3单位边距
-
-	// 设置自动缩放
-	r.coordinateSystem.SetAutoScale(expandedRangeX, expandedRangeY)
+	// 强制使用固定缩放，避免自动缩放导致的问题
+	// 使用1:1的像素比例，确保坐标系统的一致性
+	r.coordinateSystem.SetFixedScale(1.0)
 }
 
 // calculateBounds 计算所有对象的边界

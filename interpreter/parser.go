@@ -171,6 +171,19 @@ type RenderStatement struct {
 func (rs *RenderStatement) statementNode() {}
 func (rs *RenderStatement) String() string { return "render" }
 
+// 渲染帧序列语句
+type RenderFramesStatement struct {
+	Token     Token
+	FrameRate Expression // 帧率
+	Duration  Expression // 时长
+	OutputDir Expression // 输出目录
+}
+
+func (rfs *RenderFramesStatement) statementNode() {}
+func (rfs *RenderFramesStatement) String() string {
+	return fmt.Sprintf("render_frames %s %s %s", rfs.FrameRate.String(), rfs.Duration.String(), rfs.OutputDir.String())
+}
+
 // 保存语句
 type SaveStatement struct {
 	Token    Token
@@ -318,6 +331,8 @@ func (p *Parser) parseStatement() Statement {
 		return p.parseAnimateStatement()
 	case TOKEN_RENDER:
 		return p.parseRenderStatement()
+	case TOKEN_RENDER_FRAMES:
+		return p.parseRenderFramesStatement()
 	case TOKEN_SAVE:
 		return p.parseSaveStatement()
 	case TOKEN_EXPORT:
@@ -440,9 +455,58 @@ func (p *Parser) parseAnimateStatement() *AnimateStatement {
 	}
 	stmt.Object = &Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
-	if p.peekTokenIs(TOKEN_LPAREN) {
-		p.nextToken()
-		stmt.Parameters = p.parseExpressionList(TOKEN_RPAREN)
+	// 根据动画类型解析不同的参数
+	switch stmt.Animation.Type {
+	case TOKEN_COLOR:
+		// 颜色动画：一个字符串参数
+		if p.peekTokenIs(TOKEN_STRING) {
+			p.nextToken()
+			expr := p.parseExpression()
+			if expr != nil {
+				stmt.Parameters = append(stmt.Parameters, expr)
+			}
+		}
+	case TOKEN_PATH:
+		// 路径动画：一个数组参数
+		if p.peekTokenIs(TOKEN_LBRACKET) {
+			p.nextToken()
+			expr := p.parseExpression()
+			if expr != nil {
+				stmt.Parameters = append(stmt.Parameters, expr)
+			}
+		}
+	case TOKEN_ELASTIC:
+		// 弹性动画：两个参数（字符串和数字或负数）
+		// 解析第一个参数（属性名）
+		if p.peekTokenIs(TOKEN_STRING) {
+			p.nextToken()
+			expr := p.parseExpression()
+			if expr != nil {
+				stmt.Parameters = append(stmt.Parameters, expr)
+			}
+		}
+		// 解析第二个参数（目标值，可能是负数）
+		if p.peekTokenIs(TOKEN_MINUS) || p.peekTokenIs(TOKEN_NUMBER) {
+			p.nextToken()
+			expr := p.parseExpression()
+			if expr != nil {
+				stmt.Parameters = append(stmt.Parameters, expr)
+			}
+		}
+	default:
+		// 传统动画类型可能有坐标参数
+		for !p.peekTokenIs(TOKEN_NUMBER) && !p.peekTokenIs(TOKEN_EOF) && !p.peekTokenIs(TOKEN_NEWLINE) {
+			// 如果下一个token是左括号，则解析坐标表达式
+			if p.peekTokenIs(TOKEN_LPAREN) {
+				p.nextToken()
+				expr := p.parseExpression() // 这会调用 parseCoordinateExpression
+				if expr != nil {
+					stmt.Parameters = append(stmt.Parameters, expr)
+				}
+			} else {
+				break
+			}
+		}
 	}
 
 	if !p.expectPeek(TOKEN_NUMBER) {
@@ -456,6 +520,31 @@ func (p *Parser) parseAnimateStatement() *AnimateStatement {
 // parseRenderStatement 解析渲染语句
 func (p *Parser) parseRenderStatement() *RenderStatement {
 	return &RenderStatement{Token: p.curToken}
+}
+
+// parseRenderFramesStatement 解析渲染帧序列语句
+func (p *Parser) parseRenderFramesStatement() *RenderFramesStatement {
+	stmt := &RenderFramesStatement{Token: p.curToken}
+
+	// 解析帧率
+	if !p.expectPeek(TOKEN_NUMBER) {
+		return nil
+	}
+	stmt.FrameRate = p.parseNumberLiteral()
+
+	// 解析时长
+	if !p.expectPeek(TOKEN_NUMBER) {
+		return nil
+	}
+	stmt.Duration = p.parseNumberLiteral()
+
+	// 解析输出目录
+	if !p.expectPeek(TOKEN_STRING) {
+		return nil
+	}
+	stmt.OutputDir = p.parseStringLiteral()
+
+	return stmt
 }
 
 // parseSaveStatement 解析保存语句
@@ -717,21 +806,21 @@ func (p *Parser) expectPeekProperty() bool {
 			return true
 		}
 	}
-	propNames := []string{"color", "size", "position", "opacity", "width", "height", "vertex1", "vertex2", "vertex3", "vertices"}
+	propNames := []string{"color_prop", "size", "position", "opacity", "width", "height", "vertex1", "vertex2", "vertex3", "vertices"}
 	p.errors = append(p.errors, fmt.Sprintf("行 %d: 需要属性名（%s），但得到了 '%s'",
 		p.peekToken.Line, strings.Join(propNames, ", "), p.peekToken.Literal))
 	return false
 }
 
 func (p *Parser) expectPeekAnimationType() bool {
-	animations := []TokenType{TOKEN_MOVE, TOKEN_SCALE, TOKEN_ROTATE, TOKEN_FADE_IN, TOKEN_FADE_OUT}
+	animations := []TokenType{TOKEN_MOVE, TOKEN_SCALE, TOKEN_ROTATE, TOKEN_FADE_IN, TOKEN_FADE_OUT, TOKEN_BOUNCE, TOKEN_COLOR, TOKEN_PATH, TOKEN_ELASTIC}
 	for _, t := range animations {
 		if p.peekTokenIs(t) {
 			p.nextToken()
 			return true
 		}
 	}
-	animNames := []string{"move", "scale", "rotate", "fadein", "fadeout"}
+	animNames := []string{"move", "scale", "rotate", "fadein", "fadeout", "bounce", "colorchange", "path", "elastic"}
 	p.errors = append(p.errors, fmt.Sprintf("行 %d: 需要动画类型（%s），但得到了 '%s'",
 		p.peekToken.Line, strings.Join(animNames, ", "), p.peekToken.Literal))
 	return false

@@ -92,8 +92,8 @@ func (s *Scene) Clear() {
 func (s *Scene) PlayAnimation(anim animation.Animation) {
 	anim.Reset()
 
-	// 计算动画步数 (假设30fps)
-	fps := 30.0
+	// 计算动画步数 (使用60fps以获得更流畅的效果)
+	fps := 60.0
 	duration := anim.GetDuration()
 	totalFrames := int(duration.Seconds() * fps)
 

@@ -23,6 +23,7 @@ import (
 type Evaluator struct {
 	scene       *scene.Scene
 	objects     map[string]interface{} // 存储创建的对象
+	animations  []animation.Animation  // 存储动画序列
 	errors      []string
 	projectName string // 项目名称
 	currentLine int    // 当前执行行号
@@ -32,8 +33,9 @@ type Evaluator struct {
 // NewEvaluator 创建新的执行引擎
 func NewEvaluator() *Evaluator {
 	return &Evaluator{
-		objects: make(map[string]interface{}),
-		errors:  []string{},
+		objects:    make(map[string]interface{}),
+		animations: make([]animation.Animation, 0),
+		errors:     []string{},
 	}
 }
 
@@ -67,6 +69,8 @@ func (e *Evaluator) evalStatement(stmt Statement) error {
 		return e.evalAnimateStatement(node)
 	case *RenderStatement:
 		return e.evalRenderStatement(node)
+	case *RenderFramesStatement:
+		return e.evalRenderFramesStatement(node)
 	case *SaveStatement:
 		return e.evalSaveStatement(node)
 	case *ExportStatement:
@@ -96,6 +100,8 @@ func getStatementToken(stmt Statement) *Token {
 	case *AnimateStatement:
 		return &s.Token
 	case *RenderStatement:
+		return &s.Token
+	case *RenderFramesStatement:
 		return &s.Token
 	case *SaveStatement:
 		return &s.Token
@@ -1161,11 +1167,79 @@ func (e *Evaluator) evalAnimateStatement(stmt *AnimateStatement) error {
 		anim = animation.NewFadeInAnimation(mobj, duration)
 	case TOKEN_FADE_OUT:
 		anim = animation.NewFadeOutAnimation(mobj, duration)
+	case TOKEN_BOUNCE:
+		anim = animation.NewBouncingBallAnimation(mobj, duration)
+	case TOKEN_COLOR:
+		if len(stmt.Parameters) < 1 {
+			return fmt.Errorf("color animation requires target color")
+		}
+		// 解析颜色参数
+		colorExpr, ok := stmt.Parameters[0].(*StringLiteral)
+		if !ok {
+			return fmt.Errorf("color parameter must be a string")
+		}
+		colorStr := colorExpr.Value
+		var endColor color.RGBA
+		if strings.HasPrefix(colorStr, "#") {
+			endColor = colors.HexToRGBA(colorStr)
+		} else {
+			// 尝试查找预定义颜色
+			if c, exists := defaults.GetColorByName(colorStr); exists {
+				endColor = c
+			} else {
+				endColor = color.RGBA{255, 255, 255, 255} // 默认白色
+			}
+		}
+		anim = animation.NewColorAnimation(mobj, endColor, duration)
+	case TOKEN_PATH:
+		if len(stmt.Parameters) < 1 {
+			return fmt.Errorf("path animation requires path points array")
+		}
+		// 解析路径点数组
+		arrayExpr, ok := stmt.Parameters[0].(*ArrayExpression)
+		if !ok {
+			return fmt.Errorf("path parameter must be an array of coordinates")
+		}
+		var pathPoints []gmMath.Vector2
+		for _, element := range arrayExpr.Elements {
+			coordExpr, ok := element.(*CoordinateExpression)
+			if !ok {
+				return fmt.Errorf("path points must be coordinates")
+			}
+			xVal, err := e.evalExpression(coordExpr.X)
+			if err != nil {
+				return err
+			}
+			yVal, err := e.evalExpression(coordExpr.Y)
+			if err != nil {
+				return err
+			}
+			pathPoints = append(pathPoints, gmMath.NewVector2(xVal.(float64), yVal.(float64)))
+		}
+		anim = animation.NewPathAnimation(mobj, pathPoints, duration)
+	case TOKEN_ELASTIC:
+		if len(stmt.Parameters) < 2 {
+			return fmt.Errorf("elastic animation requires property and target value")
+		}
+		// 解析属性参数
+		propExpr, ok := stmt.Parameters[0].(*StringLiteral)
+		if !ok {
+			return fmt.Errorf("elastic property must be a string")
+		}
+		propStr := propExpr.Value
+
+		// 解析目标值参数
+		targetVal, err := e.evalExpression(stmt.Parameters[1])
+		if err != nil {
+			return err
+		}
+		anim = animation.NewElasticAnimation(mobj, propStr, targetVal.(float64), duration.Seconds())
 	default:
 		return fmt.Errorf("unsupported animation type: %s", stmt.Animation.Literal)
 	}
 
-	e.scene.PlayAnimation(anim)
+	// 将动画添加到序列中，而不是立即播放
+	e.animations = append(e.animations, anim)
 	return nil
 }
 
@@ -1256,6 +1330,221 @@ func (e *Evaluator) evalRenderStatement(stmt *RenderStatement) error {
 	return nil
 }
 
+// evalRenderFramesStatement 执行渲染帧序列语句
+func (e *Evaluator) evalRenderFramesStatement(stmt *RenderFramesStatement) error {
+	if e.scene == nil {
+		return fmt.Errorf("no scene defined")
+	}
+
+	// 解析参数
+	frameRateVal, err := e.evalExpression(stmt.FrameRate)
+	if err != nil {
+		return err
+	}
+	frameRate := int(frameRateVal.(float64))
+
+	durationVal, err := e.evalExpression(stmt.Duration)
+	if err != nil {
+		return err
+	}
+	duration := durationVal.(float64)
+
+	outputDirVal, err := e.evalExpression(stmt.OutputDir)
+	if err != nil {
+		return err
+	}
+	outputDir := outputDirVal.(string)
+
+	// 创建序列帧渲染器
+	fsr := renderer.NewFrameSequenceRenderer(outputDir, frameRate, duration, e.scene.GetWidth(), e.scene.GetHeight())
+
+	// 计算总帧数
+	totalFrames := int(duration * float64(frameRate))
+
+	// 计算动画的累积时间
+	var animationTimeMap []struct {
+		startTime float64
+		animation animation.Animation
+	}
+
+	currentTime := 0.0
+	for _, anim := range e.animations {
+		animationTimeMap = append(animationTimeMap, struct {
+			startTime float64
+			animation animation.Animation
+		}{currentTime, anim})
+		currentTime += anim.GetDuration().Seconds()
+	}
+
+	// 渲染每一帧
+	fmt.Printf("🎬 开始渲染序列帧...\n")
+	fmt.Printf("   输出目录: %s\n", outputDir)
+	fmt.Printf("   帧率: %d fps\n", frameRate)
+	fmt.Printf("   总帧数: %d\n", totalFrames)
+	fmt.Printf("   动画数量: %d\n", len(e.animations))
+
+	start := time.Now()
+
+	for frame := 0; frame < totalFrames; frame++ {
+		// 计算当前时间
+		currentTime := float64(frame) / float64(frameRate)
+
+		// 重置所有动画
+		for _, mapping := range animationTimeMap {
+			mapping.animation.Reset()
+		}
+
+		// 更新所有相关动画
+		for _, mapping := range animationTimeMap {
+			if currentTime >= mapping.startTime {
+				localTime := currentTime - mapping.startTime
+				animDuration := mapping.animation.GetDuration().Seconds()
+				if localTime <= animDuration {
+					progress := localTime / animDuration
+					mapping.animation.Update(progress)
+				} else {
+					// 动画已完成，设置为最终状态
+					mapping.animation.Update(1.0)
+				}
+			}
+		}
+
+		// 渲染当前帧
+		if err := fsr.RenderFrame(e.scene, frame); err != nil {
+			return fmt.Errorf("渲染第 %d 帧失败: %v", frame, err)
+		}
+
+		// 显示进度
+		if frame%10 == 0 || frame == totalFrames-1 {
+			progress := float64(frame+1) / float64(totalFrames) * 100
+			fmt.Printf("   进度: %.1f%% (%d/%d)\n", progress, frame+1, totalFrames)
+		}
+	}
+
+	elapsed := time.Since(start)
+	fmt.Printf("✅ 序列帧渲染完成！耗时: %v\n", elapsed)
+
+	// 尝试自动生成视频
+	return e.generateVideo(outputDir, frameRate)
+}
+
+// generateVideo 自动生成视频
+func (e *Evaluator) generateVideo(outputDir string, frameRate int) error {
+	fmt.Printf("\n🎥 正在尝试自动生成视频...\n")
+
+	// 检查FFmpeg是否可用
+	_, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		fmt.Printf("⚠️  FFmpeg 未找到，跳过自动视频生成\n")
+		fmt.Printf("   请手动安装 FFmpeg 或使用在线工具转换\n")
+		e.generateManualInstructions(outputDir, frameRate)
+		return nil
+	}
+
+	// 生成MP4视频
+	mp4Path := filepath.Join(outputDir, "animation.mp4")
+	mp4Cmd := exec.Command("ffmpeg",
+		"-framerate", fmt.Sprintf("%d", frameRate),
+		"-i", filepath.Join(outputDir, "frame_%06d.png"),
+		"-c:v", "libx264",
+		"-preset", "medium",
+		"-crf", "23",
+		"-pix_fmt", "yuv420p",
+		"-y", // 覆盖已存在的文件
+		mp4Path)
+
+	fmt.Printf("   生成 MP4: %s\n", mp4Path)
+	if err := mp4Cmd.Run(); err != nil {
+		fmt.Printf("❌ MP4 生成失败: %v\n", err)
+	} else {
+		fmt.Printf("✅ MP4 生成成功!\n")
+	}
+
+	// 生成GIF动画
+	gifPath := filepath.Join(outputDir, "animation.gif")
+
+	// 首先生成调色板
+	palettePath := filepath.Join(outputDir, "palette.png")
+	paletteCmd := exec.Command("ffmpeg",
+		"-framerate", fmt.Sprintf("%d", frameRate),
+		"-i", filepath.Join(outputDir, "frame_%06d.png"),
+		"-vf", "fps=30,scale=800:450:flags=lanczos,palettegen",
+		"-y",
+		palettePath)
+
+	if err := paletteCmd.Run(); err != nil {
+		fmt.Printf("❌ 调色板生成失败: %v\n", err)
+	} else {
+		// 生成GIF
+		gifCmd := exec.Command("ffmpeg",
+			"-framerate", fmt.Sprintf("%d", frameRate),
+			"-i", filepath.Join(outputDir, "frame_%06d.png"),
+			"-i", palettePath,
+			"-filter_complex", "fps=30,scale=800:450:flags=lanczos[x];[x][1:v]paletteuse",
+			"-y",
+			gifPath)
+
+		fmt.Printf("   生成 GIF: %s\n", gifPath)
+		if err := gifCmd.Run(); err != nil {
+			fmt.Printf("❌ GIF 生成失败: %v\n", err)
+		} else {
+			fmt.Printf("✅ GIF 生成成功!\n")
+		}
+	}
+
+	fmt.Printf("\n🎉 视频生成完成!\n")
+	fmt.Printf("   📹 MP4: %s\n", mp4Path)
+	fmt.Printf("   🎞️ GIF: %s\n", gifPath)
+
+	return nil
+}
+
+// generateManualInstructions 生成手动操作说明
+func (e *Evaluator) generateManualInstructions(outputDir string, frameRate int) {
+	instructionsPath := filepath.Join(outputDir, "VIDEO_INSTRUCTIONS.md")
+
+	content := fmt.Sprintf(`# 视频生成说明
+
+## 自动生成 (需要 FFmpeg)
+
+### 安装 FFmpeg
+- Windows: 下载 https://ffmpeg.org/download.html 并添加到 PATH
+- macOS: brew install ffmpeg
+- Linux: sudo apt install ffmpeg
+
+### 生成命令
+
+#### MP4 视频:
+`+"```bash"+`
+ffmpeg -framerate %d -i "frame_%%06d.png" -c:v libx264 -preset medium -crf 23 -pix_fmt yuv420p animation.mp4
+`+"```"+`
+
+#### GIF 动画:
+`+"```bash"+`
+ffmpeg -framerate %d -i "frame_%%06d.png" -vf "fps=30,scale=800:450:flags=lanczos,palettegen" palette.png
+ffmpeg -framerate %d -i "frame_%%06d.png" -i palette.png -filter_complex "fps=30,scale=800:450:flags=lanczos[x];[x][1:v]paletteuse" animation.gif
+`+"```"+`
+
+## 在线转换
+
+如果无法安装 FFmpeg，可使用在线工具:
+1. 将所有 PNG 文件打包为 ZIP
+2. 上传到 ezgif.com 或类似网站
+3. 设置帧率为 %d fps
+4. 下载生成的视频
+
+## 文件说明
+
+- frame_000000.png ~ frame_NNNNNN.png: 序列帧图像
+- 建议帧率: %d fps
+- 总时长: %.1f 秒
+`, frameRate, frameRate, frameRate, frameRate, float64(len(os.Args))/float64(frameRate))
+
+	if err := os.WriteFile(instructionsPath, []byte(content), 0644); err == nil {
+		fmt.Printf("💾 说明文档已保存: %s\n", instructionsPath)
+	}
+}
+
 // evalSaveStatement 执行保存语句
 func (e *Evaluator) evalSaveStatement(stmt *SaveStatement) error {
 	if e.scene == nil {
@@ -1334,7 +1623,7 @@ func (e *Evaluator) evalExportStatement(stmt *ExportStatement) error {
 	}
 
 	// 默认参数
-	fps := 30.0
+	fps := 60.0
 	duration := 5.0
 
 	// 解析可选参数
@@ -1569,6 +1858,33 @@ func (e *Evaluator) renderAnimationSequence(filename string, fps, duration float
 		return fmt.Errorf("渲染器类型不支持")
 	}
 
+	// 检查是否已经存在帧文件（通过save命令生成的）
+	// 如果存在，则使用这些帧而不是生成新的
+	projectFrameDir := fmt.Sprintf("output/%s/frames", e.projectName)
+	if _, err := os.Stat(projectFrameDir); err == nil {
+		// 帧目录存在，检查是否有帧文件
+		entries, _ := os.ReadDir(projectFrameDir)
+		if len(entries) > 0 {
+			// 使用现有的帧文件生成视频
+			fmt.Printf("使用已存在的帧文件生成视频: %s\n", filename)
+
+			// 使用FFmpeg合成视频，使用项目帧目录中的文件
+			ffmpegCmd := fmt.Sprintf("ffmpeg -r %.2f -i output/%s/frames/%s_%%02d.png -c:v libx264 -pix_fmt yuv420p %s", fps, e.projectName, e.projectName, filename)
+
+			cmd := exec.Command("cmd", "/C", ffmpegCmd)
+			_, err := cmd.CombinedOutput()
+			if err != nil {
+				fmt.Printf("⚠️ FFmpeg未安装或执行失败\n")
+				fmt.Printf("您可以手动使用FFmpeg合成视频: %s\n", ffmpegCmd)
+				return nil // 不返回错误，只是警告
+			}
+
+			fmt.Printf("动画视频已生成: %s\n", filename)
+			return nil
+		}
+	}
+
+	// 如果没有现有帧，则生成新的动画帧（原有逻辑）
 	// 计算总帧数
 	totalFrames := int(fps * duration)
 	frameDir := fmt.Sprintf("%s_frames", strings.TrimSuffix(filename, ".mp4"))

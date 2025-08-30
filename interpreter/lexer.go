@@ -18,26 +18,27 @@ const (
 	TOKEN_NEWLINE
 
 	// 标识符和字面量
-	TOKEN_IDENT  // 变量名、函数名
-	TOKEN_NUMBER // 数字
-	TOKEN_STRING // 字符串
-	TOKEN_COLOR  // 颜色值 #RRGGBB
+	TOKEN_IDENT     // 变量名、函数名
+	TOKEN_NUMBER    // 数字
+	TOKEN_STRING    // 字符串
+	TOKEN_HEX_COLOR // 颜色值 #RRGGBB
 
 	// 关键字
-	TOKEN_SCENE   // scene
-	TOKEN_CREATE  // create
-	TOKEN_SET     // set
-	TOKEN_ANIMATE // animate
-	TOKEN_RENDER  // render
-	TOKEN_SAVE    // save
-	TOKEN_EXPORT  // export
-	TOKEN_VIDEO   // video
-	TOKEN_WAIT    // wait
-	TOKEN_LOOP    // loop
-	TOKEN_IF      // if
-	TOKEN_ELSE    // else
-	TOKEN_END     // end
-	TOKEN_CLEAN   // clean
+	TOKEN_SCENE         // scene
+	TOKEN_CREATE        // create
+	TOKEN_SET           // set
+	TOKEN_ANIMATE       // animate
+	TOKEN_RENDER        // render
+	TOKEN_RENDER_FRAMES // render_frames
+	TOKEN_SAVE          // save
+	TOKEN_EXPORT        // export
+	TOKEN_VIDEO         // video
+	TOKEN_WAIT          // wait
+	TOKEN_LOOP          // loop
+	TOKEN_IF            // if
+	TOKEN_ELSE          // else
+	TOKEN_END           // end
+	TOKEN_CLEAN         // clean
 
 	// 几何类型
 	TOKEN_CIRCLE            // circle
@@ -58,6 +59,10 @@ const (
 	TOKEN_ROTATE   // rotate
 	TOKEN_FADE_IN  // fadein
 	TOKEN_FADE_OUT // fadeout
+	TOKEN_BOUNCE   // bounce
+	TOKEN_COLOR    // color
+	TOKEN_PATH     // path
+	TOKEN_ELASTIC  // elastic
 
 	// 属性
 	TOKEN_COLOR_PROP     // color
@@ -116,6 +121,7 @@ var keywords = map[string]TokenType{
 	"set":               TOKEN_SET,
 	"animate":           TOKEN_ANIMATE,
 	"render":            TOKEN_RENDER,
+	"render_frames":     TOKEN_RENDER_FRAMES,
 	"save":              TOKEN_SAVE,
 	"export":            TOKEN_EXPORT,
 	"video":             TOKEN_VIDEO,
@@ -143,6 +149,10 @@ var keywords = map[string]TokenType{
 	"rotate":            TOKEN_ROTATE,
 	"fadein":            TOKEN_FADE_IN,
 	"fadeout":           TOKEN_FADE_OUT,
+	"bounce":            TOKEN_BOUNCE,
+	"colorchange":       TOKEN_COLOR,
+	"path":              TOKEN_PATH,
+	"elastic":           TOKEN_ELASTIC,
 	"color":             TOKEN_COLOR_PROP,
 	"size":              TOKEN_SIZE_PROP,
 	"position":          TOKEN_POSITION_PROP,
@@ -272,13 +282,10 @@ func (l *Lexer) NextToken() Token {
 		// 检查下一个字符是否是数字，如果是则视为负数的一部分
 		if isDigit(l.peekChar()) {
 			// 读取整个负数
-			l.readChar()
 			tok.Type = TOKEN_NUMBER
 			tok.Literal = l.readNumber()
 			tok.Line = l.line
 			tok.Column = l.column
-			// 在数字前添加负号
-			tok.Literal = "-" + tok.Literal
 			return tok
 		} else {
 			// 否则视为减号操作符
@@ -327,7 +334,7 @@ func (l *Lexer) NextToken() Token {
 			return l.NextToken() // 递归获取下一个标记
 		} else {
 			// 这是颜色值
-			tok.Type = TOKEN_COLOR
+			tok.Type = TOKEN_HEX_COLOR
 			tok.Literal = l.readColor()
 			tok.Line = l.line
 			tok.Column = l.column
@@ -426,8 +433,10 @@ func (tt TokenType) String() string {
 		return "NUMBER"
 	case TOKEN_STRING:
 		return "STRING"
+	case TOKEN_HEX_COLOR:
+		return "HEX_COLOR"
 	case TOKEN_COLOR:
-		return "COLOR"
+		return "COLOR_ANIM"
 	case TOKEN_SCENE:
 		return "SCENE"
 	case TOKEN_CREATE:
@@ -438,6 +447,8 @@ func (tt TokenType) String() string {
 		return "ANIMATE"
 	case TOKEN_RENDER:
 		return "RENDER"
+	case TOKEN_RENDER_FRAMES:
+		return "RENDER_FRAMES"
 	case TOKEN_SAVE:
 		return "SAVE"
 	case TOKEN_EXPORT:
