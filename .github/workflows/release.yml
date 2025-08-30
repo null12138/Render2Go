@@ -73,7 +73,7 @@ jobs:
         go build -ldflags="-s -w" -o dist/${{ matrix.name }} ./cmd/render2go
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.name }}
         path: dist/${{ matrix.name }}
@@ -89,15 +89,18 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         path: artifacts
+        merge-multiple: true
 
     - name: Prepare release assets
       run: |
         mkdir -p release
-        find artifacts -name "render2go-*" -type f -exec cp {} release/ \;
-        ls -la release/
+        # v4版本的artifact会直接下载到artifacts目录
+        find artifacts -name "render2go-*" -type f -exec cp {} release/ \; || true
+        ls -la artifacts/ || echo "No artifacts directory"
+        ls -la release/ || echo "No release directory"
 
     - name: Get version
       id: get_version
@@ -110,12 +113,12 @@ jobs:
 
     - name: Create Release
       id: create_release
-      uses: actions/create-release@v1
+      uses: softprops/action-gh-release@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ steps.get_version.outputs.version }}
-        release_name: Render2Go ${{ steps.get_version.outputs.version }}
+        name: Render2Go ${{ steps.get_version.outputs.version }}
         body: |
           ## Render2Go ${{ steps.get_version.outputs.version }}
           
@@ -138,20 +141,6 @@ jobs:
           - 数学可视化支持
           
           完整使用说明请查看 [README.md](https://github.com/null12138/Render2Go/blob/main/README.md)
+        files: release/*
         draft: false
         prerelease: false
-
-    - name: Upload Release Assets
-      run: |
-        for file in release/*; do
-          if [ -f "$file" ]; then
-            filename=$(basename "$file")
-            echo "Uploading $filename..."
-            curl \
-              -X POST \
-              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              -H "Content-Type: application/octet-stream" \
-              --data-binary @"$file" \
-              "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ steps.create_release.outputs.id }}/assets?name=$filename"
-          fi
-        done

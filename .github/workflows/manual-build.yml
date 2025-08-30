@@ -62,7 +62,7 @@ jobs:
         go build -ldflags="-s -w" -o ${{ matrix.name }} ./cmd/render2go
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.name }}
         path: ${{ matrix.name }}
@@ -93,7 +93,7 @@ jobs:
         go build -ldflags="-s -w" -o render2go-windows-${{ matrix.goarch }}.exe ./cmd/render2go
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: render2go-windows-${{ matrix.goarch }}.exe
         path: render2go-windows-${{ matrix.goarch }}.exe
@@ -124,7 +124,7 @@ jobs:
         go build -ldflags="-s -w" -o render2go-linux-${{ matrix.goarch }} ./cmd/render2go
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: render2go-linux-${{ matrix.goarch }}
         path: render2go-linux-${{ matrix.goarch }}
@@ -155,7 +155,7 @@ jobs:
         go build -ldflags="-s -w" -o render2go-macos-${{ matrix.goarch }} ./cmd/render2go
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: render2go-macos-${{ matrix.goarch }}
         path: render2go-macos-${{ matrix.goarch }}
