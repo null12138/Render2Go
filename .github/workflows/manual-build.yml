@@ -1,0 +1,161 @@
+name: Manual Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: '选择构建平台'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - all
+        - windows
+        - linux
+        - macos
+
+env:
+  GO_VERSION: '1.23'
+
+jobs:
+  build-all:
+    name: Build for all platforms
+    runs-on: ubuntu-latest
+    if: github.event.inputs.platforms == 'all'
+    strategy:
+      matrix:
+        include:
+          - goos: windows
+            goarch: amd64
+            name: render2go-windows-amd64.exe
+          - goos: windows
+            goarch: arm64
+            name: render2go-windows-arm64.exe
+          - goos: linux
+            goarch: amd64
+            name: render2go-linux-amd64
+          - goos: linux
+            goarch: arm64
+            name: render2go-linux-arm64
+          - goos: darwin
+            goarch: amd64
+            name: render2go-macos-amd64
+          - goos: darwin
+            goarch: arm64
+            name: render2go-macos-arm64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Build binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: |
+        go build -ldflags="-s -w" -o ${{ matrix.name }} ./cmd/render2go
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.name }}
+        path: ${{ matrix.name }}
+
+  build-windows:
+    name: Build for Windows
+    runs-on: ubuntu-latest
+    if: github.event.inputs.platforms == 'windows'
+    strategy:
+      matrix:
+        goarch: [amd64, arm64]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Build Windows binary
+      env:
+        GOOS: windows
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: |
+        go build -ldflags="-s -w" -o render2go-windows-${{ matrix.goarch }}.exe ./cmd/render2go
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: render2go-windows-${{ matrix.goarch }}.exe
+        path: render2go-windows-${{ matrix.goarch }}.exe
+
+  build-linux:
+    name: Build for Linux
+    runs-on: ubuntu-latest
+    if: github.event.inputs.platforms == 'linux'
+    strategy:
+      matrix:
+        goarch: [amd64, arm64]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Build Linux binary
+      env:
+        GOOS: linux
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: |
+        go build -ldflags="-s -w" -o render2go-linux-${{ matrix.goarch }} ./cmd/render2go
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: render2go-linux-${{ matrix.goarch }}
+        path: render2go-linux-${{ matrix.goarch }}
+
+  build-macos:
+    name: Build for macOS
+    runs-on: ubuntu-latest
+    if: github.event.inputs.platforms == 'macos'
+    strategy:
+      matrix:
+        goarch: [amd64, arm64]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Build macOS binary
+      env:
+        GOOS: darwin
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: |
+        go build -ldflags="-s -w" -o render2go-macos-${{ matrix.goarch }} ./cmd/render2go
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: render2go-macos-${{ matrix.goarch }}
+        path: render2go-macos-${{ matrix.goarch }}

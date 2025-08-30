@@ -1,0 +1,157 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+env:
+  GO_VERSION: '1.23'
+
+jobs:
+  build:
+    name: Build for multiple platforms
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          # Windows
+          - goos: windows
+            goarch: amd64
+            name: render2go-windows-amd64.exe
+          - goos: windows
+            goarch: arm64
+            name: render2go-windows-arm64.exe
+          # Linux
+          - goos: linux
+            goarch: amd64
+            name: render2go-linux-amd64
+          - goos: linux
+            goarch: arm64
+            name: render2go-linux-arm64
+          # macOS
+          - goos: darwin
+            goarch: amd64
+            name: render2go-macos-amd64
+          - goos: darwin
+            goarch: arm64
+            name: render2go-macos-arm64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Install dependencies
+      run: go mod download
+
+    - name: Build binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: |
+        mkdir -p dist
+        go build -ldflags="-s -w" -o dist/${{ matrix.name }} ./cmd/render2go
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.name }}
+        path: dist/${{ matrix.name }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: artifacts
+
+    - name: Prepare release assets
+      run: |
+        mkdir -p release
+        find artifacts -name "render2go-*" -type f -exec cp {} release/ \;
+        ls -la release/
+
+    - name: Get version
+      id: get_version
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        else
+          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.get_version.outputs.version }}
+        release_name: Render2Go ${{ steps.get_version.outputs.version }}
+        body: |
+          ## Render2Go ${{ steps.get_version.outputs.version }}
+          
+          🚀 **全平台可执行文件发布**
+          
+          ### 📦 下载说明
+          - **Windows**: `render2go-windows-amd64.exe` (64位) / `render2go-windows-arm64.exe` (ARM64)
+          - **Linux**: `render2go-linux-amd64` (64位) / `render2go-linux-arm64` (ARM64)
+          - **macOS**: `render2go-macos-amd64` (Intel) / `render2go-macos-arm64` (Apple Silicon)
+          
+          ### 🛠️ 使用方法
+          1. 下载对应平台的可执行文件
+          2. 给文件添加执行权限 (Linux/macOS): `chmod +x render2go-*`
+          3. 运行: `./render2go-* --help`
+          
+          ### ✨ 功能特性
+          - 支持R2G脚本语言
+          - 高质量动画渲染
+          - 多种插值算法
+          - 数学可视化支持
+          
+          完整使用说明请查看 [README.md](https://github.com/null12138/Render2Go/blob/main/README.md)
+        draft: false
+        prerelease: false
+
+    - name: Upload Release Assets
+      run: |
+        for file in release/*; do
+          if [ -f "$file" ]; then
+            filename=$(basename "$file")
+            echo "Uploading $filename..."
+            curl \
+              -X POST \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"$file" \
+              "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ steps.create_release.outputs.id }}/assets?name=$filename"
+          fi
+        done
